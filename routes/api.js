@@ -117,9 +117,12 @@ router.post('/contact', contactLimiter, [
   const { name, email, phone, message, vehicleId, preferredLanguage } = req.body;
 
   const transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-    port:   parseInt(process.env.SMTP_PORT) || 587,
-    secure: false,
+    host:             process.env.SMTP_HOST || 'smtp.gmail.com',
+    port:             parseInt(process.env.SMTP_PORT) || 587,
+    secure:           false,
+    connectionTimeout: 5000,  // 5s to connect
+    greetingTimeout:  5000,   // 5s for server greeting
+    socketTimeout:    8000,   // 8s total socket timeout
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -163,16 +166,20 @@ router.post('/contact', contactLimiter, [
   }
 
   // Send email (best-effort — lead is already saved to DB)
+  // Hard 10s timeout so form never hangs regardless of SMTP state
+  const emailTimeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('SMTP timeout')), 10000)
+  );
   try {
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      await transporter.sendMail(mailOptions);
+      await Promise.race([transporter.sendMail(mailOptions), emailTimeout]);
     } else {
       console.log('[Contact] (dev mode, email not sent):', mailOptions.text);
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
     console.error('[Contact] Email error:', e.message);
-    // Lead already saved — don't show error to user
+    // Lead already saved — respond with success anyway
     res.json({ ok: true, message: '¡Mensaje recibido! Diego te contactará pronto.' });
   }
 });
