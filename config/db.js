@@ -1,193 +1,185 @@
 /**
- * db.js — persistent SQLite via sql.js (pure JS/WASM, no native bindings)
- * locateFile is explicit so Railway's CWD never breaks wasm resolution.
+ * db.js — lightweight JSON-file persistence
+ * No native bindings, no WASM. Works on any Node.js 18+ environment.
+ * Data is stored at DB_PATH as a JSON file, flushed to disk on every write.
  */
 
-const initSqlJs = require('sql.js');
-const fs        = require('fs');
-const path      = require('path');
+const fs   = require('fs');
+const path = require('path');
 
-const DB_PATH          = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'app.db');
-const SAVE_INTERVAL_MS = 30_000;
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'db.json');
 
-let db    = null;
-let sqlJs = null;
+// ── In-memory store ───────────────────────────────────────
+let store = {
+  leads:        [],
+  page_events:  [],
+  _leadSeq:     0,
+  _eventSeq:    0,
+};
 
 // ── Bootstrap ─────────────────────────────────────────────
 const init = async () => {
-  // locateFile MUST be explicit — Railway's CWD != __dirname
-  sqlJs = await initSqlJs({
-    locateFile: file => path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', file),
-  });
-
   const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.warn(`[DB] Cannot create data dir (${dir}): ${e.message} — running in-memory only`);
+  }
 
   if (fs.existsSync(DB_PATH)) {
-    const buf = fs.readFileSync(DB_PATH);
-    db = new sqlJs.Database(buf);
-    console.log(`[DB] Loaded from ${DB_PATH}`);
+    try {
+      const raw = fs.readFileSync(DB_PATH, 'utf8');
+      store = JSON.parse(raw);
+      // Ensure arrays exist in case of schema additions
+      store.leads       = store.leads       || [];
+      store.page_events = store.page_events || [];
+      store._leadSeq    = store._leadSeq    || store.leads.length;
+      store._eventSeq   = store._eventSeq   || store.page_events.length;
+      console.log(`[DB] Loaded from ${DB_PATH} (${store.leads.length} leads, ${store.page_events.length} events)`);
+    } catch (e) {
+      console.warn(`[DB] Could not parse existing DB, starting fresh: ${e.message}`);
+    }
   } else {
-    db = new sqlJs.Database();
     console.log(`[DB] New database → ${DB_PATH}`);
   }
 
-  createTables();
-  startAutosave();
-  return db;
+  // Graceful shutdown saves
+  process.on('SIGTERM', () => { save(); process.exit(0); });
+  process.on('SIGINT',  () => { save(); process.exit(0); });
+
+  return store;
 };
 
-// ── Schema ────────────────────────────────────────────────
-const createTables = () => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS leads (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      name        TEXT NOT NULL,
-      email       TEXT NOT NULL,
-      phone       TEXT,
-      message     TEXT NOT NULL,
-      vehicle_id  TEXT,
-      vehicle_str TEXT,
-      language    TEXT DEFAULT 'es',
-      ip_hash     TEXT,
-      user_agent  TEXT,
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-      read_at     DATETIME,
-      archived    INTEGER DEFAULT 0
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS page_events (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      event       TEXT NOT NULL,
-      payload     TEXT,
-      session_id  TEXT,
-      ip_hash     TEXT,
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  db.run(`CREATE INDEX IF NOT EXISTS idx_events_event   ON page_events(event);`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_events_created ON page_events(created_at);`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_leads_created  ON leads(created_at);`);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS admin_sessions (
-      token       TEXT PRIMARY KEY,
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-      last_used   DATETIME DEFAULT CURRENT_TIMESTAMP,
-      ip_hash     TEXT
-    );
-  `);
-};
-
-// ── Autosave ──────────────────────────────────────────────
+// ── Persist ───────────────────────────────────────────────
 const save = () => {
-  if (!db) return;
   try {
-    const data = db.export();
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
+    fs.writeFileSync(DB_PATH, JSON.stringify(store), 'utf8');
   } catch (e) {
     console.error('[DB] Save error:', e.message);
   }
 };
 
-const startAutosave = () => {
-  setInterval(save, SAVE_INTERVAL_MS);
-  process.on('exit',    save);
-  process.on('SIGINT',  () => { save(); process.exit(0); });
-  process.on('SIGTERM', () => { save(); process.exit(0); });
-};
-
-// ── Query helpers ─────────────────────────────────────────
-const run = (sql, params = []) => {
-  if (!db) throw new Error('DB not initialized');
-  db.run(sql, params);
-};
-
-const all = (sql, params = []) => {
-  if (!db) throw new Error('DB not initialized');
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) rows.push(stmt.getAsObject());
-  stmt.free();
-  return rows;
-};
-
-const get = (sql, params = []) => all(sql, params)[0] || null;
+const now = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 // ── Lead operations ───────────────────────────────────────
 const insertLead = ({ name, email, phone, message, vehicleId, language, ipHash, userAgent }) => {
-  run(
-    `INSERT INTO leads (name, email, phone, message, vehicle_id, language, ip_hash, user_agent)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, email, phone || null, message, vehicleId || null, language || 'es', ipHash || null, userAgent || null]
-  );
+  store._leadSeq++;
+  store.leads.push({
+    id:         store._leadSeq,
+    name, email,
+    phone:      phone      || null,
+    message,
+    vehicle_id: vehicleId  || null,
+    language:   language   || 'es',
+    ip_hash:    ipHash     || null,
+    user_agent: userAgent  || null,
+    created_at: now(),
+    read_at:    null,
+    archived:   0,
+  });
   save();
 };
 
 const getLeads = ({ page = 1, limit = 20, archived = 0 } = {}) => {
+  const filtered = store.leads
+    .filter(l => l.archived === archived || l.archived === String(archived))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const total  = filtered.length;
   const offset = (page - 1) * limit;
-  const rows   = all(`SELECT * FROM leads WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`, [archived, limit, offset]);
-  const total  = get(`SELECT COUNT(*) as n FROM leads WHERE archived = ?`, [archived]);
-  return { leads: rows, total: total?.n || 0, page, limit };
+  return { leads: filtered.slice(offset, offset + limit), total, page, limit };
 };
 
-const markLeadRead = (id) => { run(`UPDATE leads SET read_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]); save(); };
-const archiveLead  = (id) => { run(`UPDATE leads SET archived = 1 WHERE id = ?`, [id]); save(); };
-const getUnreadCount = () => get(`SELECT COUNT(*) as n FROM leads WHERE read_at IS NULL AND archived = 0`)?.n || 0;
+const markLeadRead = (id) => {
+  const lead = store.leads.find(l => l.id === parseInt(id));
+  if (lead) { lead.read_at = now(); save(); }
+};
+
+const archiveLead = (id) => {
+  const lead = store.leads.find(l => l.id === parseInt(id));
+  if (lead) { lead.archived = 1; save(); }
+};
+
+const getUnreadCount = () =>
+  store.leads.filter(l => !l.read_at && !l.archived).length;
 
 // ── Event operations ──────────────────────────────────────
 const logEvent = ({ event, payload, sessionId, ipHash }) => {
-  run(
-    `INSERT INTO page_events (event, payload, session_id, ip_hash) VALUES (?, ?, ?, ?)`,
-    [event, payload ? JSON.stringify(payload) : null, sessionId || null, ipHash || null]
-  );
+  store._eventSeq++;
+  store.page_events.push({
+    id:         store._eventSeq,
+    event,
+    payload:    payload ? JSON.stringify(payload) : null,
+    session_id: sessionId || null,
+    ip_hash:    ipHash    || null,
+    created_at: now(),
+  });
+  // Keep only last 50k events in memory to avoid unbounded growth
+  if (store.page_events.length > 50000) store.page_events.splice(0, 10000);
 };
 
+// ── Stats ─────────────────────────────────────────────────
 const getStats = ({ days = 14 } = {}) => {
-  const since = `datetime('now', '-${parseInt(days)} days')`;
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().replace('T',' ').slice(0,19);
 
-  const totalVisits    = get(`SELECT COUNT(*) as n FROM page_events WHERE event='pageview' AND created_at >= ${since}`);
-  const uniqueSessions = get(`SELECT COUNT(DISTINCT session_id) as n FROM page_events WHERE event='pageview' AND created_at >= ${since}`);
-  const vehicleViews   = get(`SELECT COUNT(*) as n FROM page_events WHERE event='vehicle_view' AND created_at >= ${since}`);
-  const contactClicks  = get(`SELECT COUNT(*) as n FROM page_events WHERE event='contact_click' AND created_at >= ${since}`);
-  const totalLeads     = get(`SELECT COUNT(*) as n FROM leads WHERE created_at >= ${since}`);
+  const recentEvents = store.page_events.filter(e => e.created_at >= cutoff);
+  const recentLeads  = store.leads.filter(l => l.created_at >= cutoff);
 
-  const topVehicles = all(
-    `SELECT json_extract(payload,'$.vehicleId') as vehicle_id,
-            json_extract(payload,'$.vehicleName') as vehicle_name,
-            COUNT(*) as views
-     FROM page_events
-     WHERE event='vehicle_view' AND created_at >= ${since}
-     GROUP BY vehicle_id ORDER BY views DESC LIMIT 8`
-  );
+  const pageviews    = recentEvents.filter(e => e.event === 'pageview');
+  const vehViews     = recentEvents.filter(e => e.event === 'vehicle_view');
+  const contactClks  = recentEvents.filter(e => e.event === 'contact_click');
+  const uniqueSess   = new Set(pageviews.map(e => e.session_id).filter(Boolean)).size;
 
-  const dailyVisits = all(
-    `SELECT date(created_at) as date, COUNT(*) as visits, COUNT(DISTINCT session_id) as unique_visits
-     FROM page_events WHERE event='pageview' AND created_at >= ${since}
-     GROUP BY date(created_at) ORDER BY date ASC`
-  );
+  // Daily visits
+  const visitsByDay = {};
+  const sessByDay   = {};
+  pageviews.forEach(e => {
+    const d = e.created_at.slice(0,10);
+    visitsByDay[d] = (visitsByDay[d] || 0) + 1;
+    if (!sessByDay[d]) sessByDay[d] = new Set();
+    if (e.session_id) sessByDay[d].add(e.session_id);
+  });
+  const dailyVisits = Object.keys(visitsByDay).sort().map(date => ({
+    date,
+    visits:        visitsByDay[date],
+    unique_visits: sessByDay[date]?.size || 0,
+  }));
 
-  const leadsByDay = all(
-    `SELECT date(created_at) as date, COUNT(*) as count
-     FROM leads WHERE created_at >= ${since}
-     GROUP BY date(created_at) ORDER BY date ASC`
-  );
+  // Leads by day
+  const leadsByDayMap = {};
+  recentLeads.forEach(l => {
+    const d = l.created_at.slice(0,10);
+    leadsByDayMap[d] = (leadsByDayMap[d] || 0) + 1;
+  });
+  const leadsByDay = Object.keys(leadsByDayMap).sort().map(date => ({
+    date, count: leadsByDayMap[date],
+  }));
 
-  const langBreakdown = all(
-    `SELECT language, COUNT(*) as count FROM leads WHERE created_at >= ${since} GROUP BY language`
-  );
+  // Top vehicles
+  const vehCount = {};
+  const vehNames = {};
+  vehViews.forEach(e => {
+    let p = {};
+    try { p = e.payload ? JSON.parse(e.payload) : {}; } catch {}
+    const id = p.vehicleId || 'unknown';
+    vehCount[id] = (vehCount[id] || 0) + 1;
+    if (p.vehicleName) vehNames[id] = p.vehicleName;
+  });
+  const topVehicles = Object.entries(vehCount)
+    .sort((a,b) => b[1]-a[1]).slice(0,8)
+    .map(([id, views]) => ({ vehicle_id: id, vehicle_name: vehNames[id] || id, views }));
+
+  // Language breakdown
+  const langMap = {};
+  recentLeads.forEach(l => { langMap[l.language] = (langMap[l.language] || 0) + 1; });
+  const langBreakdown = Object.entries(langMap).map(([language, count]) => ({ language, count }));
 
   return {
     summary: {
-      totalVisits:    totalVisits?.n    || 0,
-      uniqueSessions: uniqueSessions?.n || 0,
-      vehicleViews:   vehicleViews?.n   || 0,
-      contactClicks:  contactClicks?.n  || 0,
-      totalLeads:     totalLeads?.n     || 0,
+      totalVisits:    pageviews.length,
+      uniqueSessions: uniqueSess,
+      vehicleViews:   vehViews.length,
+      contactClicks:  contactClks.length,
+      totalLeads:     recentLeads.length,
       unreadLeads:    getUnreadCount(),
     },
     topVehicles,
@@ -197,10 +189,13 @@ const getStats = ({ days = 14 } = {}) => {
   };
 };
 
+// ── Pruning ───────────────────────────────────────────────
 const pruneOldEvents = () => {
-  run(`DELETE FROM page_events WHERE created_at < datetime('now', '-90 days')`);
-  run(`DELETE FROM admin_sessions WHERE created_at < datetime('now', '-48 hours')`);
-  save();
+  const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().replace('T',' ').slice(0,19);
+  const before = store.page_events.length;
+  store.page_events = store.page_events.filter(e => e.created_at >= cutoff);
+  const pruned = before - store.page_events.length;
+  if (pruned > 0) { console.log(`[DB] Pruned ${pruned} old events`); save(); }
 };
 
-module.exports = { init, run, all, get, insertLead, getLeads, markLeadRead, archiveLead, getUnreadCount, logEvent, getStats, pruneOldEvents, save };
+module.exports = { init, insertLead, getLeads, markLeadRead, archiveLead, getUnreadCount, logEvent, getStats, pruneOldEvents, save };
