@@ -147,23 +147,26 @@ router.post('/contact', contactLimiter, [
   }
 
   // Send email via Resend (HTTPS, not SMTP — works on Railway)
-  // Lead is already saved to DB so this is best-effort
+  console.log('[Contact] RESEND_API_KEY set:', !!process.env.RESEND_API_KEY);
+  console.log('[Contact] CONTACT_RECIPIENT:', process.env.CONTACT_RECIPIENT);
+  console.log('[Contact] RESEND_FROM:', process.env.RESEND_FROM);
   try {
     if (process.env.RESEND_API_KEY) {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
         to:       process.env.CONTACT_RECIPIENT,
         replyTo:  email,
         subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
         text:     emailBody,
       });
+      console.log('[Contact] Resend result:', JSON.stringify(result));
     } else {
-      console.log('[Contact] (no RESEND_API_KEY, email not sent):', emailBody);
+      console.log('[Contact] No RESEND_API_KEY set — email skipped');
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
-    console.error('[Contact] Email error:', e.message);
+    console.error('[Contact] Email error:', e.message, e);
     res.json({ ok: true, message: '¡Mensaje recibido! Diego te contactará pronto.' });
   }
 });
