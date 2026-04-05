@@ -148,6 +148,9 @@ router.post('/contact', contactLimiter, [
   // Send email via Resend HTTPS API
   try {
     const apiKey = process.env.RESEND_API_KEY;
+    // Log every character of the key to catch invisible corruption
+    console.log('[Contact] key length:', apiKey ? apiKey.length : 0);
+    console.log('[Contact] key chars:', apiKey ? [...apiKey].map(c => c.charCodeAt(0)).join(',') : 'none');
     if (apiKey) {
       const resendRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
