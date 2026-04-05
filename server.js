@@ -88,9 +88,12 @@ console.log('Starting Diego Ortiz Nissan...');
 console.log('Node:', process.version, '| CWD:', process.cwd());
 console.log('__dirname:', __dirname);
 
+const { warmCache } = require('./config/dealerrater');
+
 db.init()
   .then(() => {
     try { db.pruneOldEvents(); } catch (e) { console.warn('[pruneOldEvents]', e.message); }
+    warmCache(); // pre-fetch DealerRater reviews in background
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Running on port ${PORT}`);
