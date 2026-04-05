@@ -405,6 +405,9 @@
     }
     .review-author { font-size: .85rem; font-weight: 500; }
     .review-vehicle { font-size: .75rem; color: var(--muted); }
+    .dr-badge { display: inline-flex; align-items: center; margin-left: 8px;
+      padding: 2px 7px; border-radius: 10px; font-size: .65rem; letter-spacing: .04em;
+      background: rgba(200,169,110,.15); color: var(--gold); border: 1px solid var(--gold-dim); }
 
     /* ══════════════════════════════════════════
        CONTACT
@@ -1165,17 +1168,22 @@ const renderReviews = () => {
     .then(r => r.json())
     .then(reviews => {
       reviewsGrid.innerHTML = reviews.map(r => {
-        const text = lang === 'es' ? r.textEs : r.textEn;
+        // Support both live DealerRater format (r.text) and fallback (r.textEs/r.textEn)
+        const text = r.text || (lang === 'es' ? r.textEs : r.textEn) || '';
         const initials = escapeHTML(r.author.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase());
+        const isLive = r.source === 'DealerRater';
+        const sourceBadge = isLive
+          ? `<span class="dr-badge">DealerRater ★</span>`
+          : '';
         return `
           <div class="review-card reveal">
-            <div class="review-stars">${'<span class="star">★</span>'.repeat(r.rating)}</div>
+            <div class="review-stars">${'<span class="star">★</span>'.repeat(Math.round(r.rating))}</div>
             <p class="review-text">"${escapeHTML(text)}"</p>
             <div class="review-footer">
               <div class="review-avatar">${initials}</div>
               <div>
                 <div class="review-author">${escapeHTML(r.author)}</div>
-                <div class="review-vehicle">${escapeHTML(r.vehicle)}</div>
+                <div class="review-vehicle">${r.vehicle ? escapeHTML(r.vehicle) : ''}${sourceBadge}</div>
               </div>
             </div>
           </div>
