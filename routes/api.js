@@ -3,6 +3,7 @@ const router   = express.Router();
 const crypto   = require('crypto');
 const { body, query, param, validationResult } = require('express-validator');
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const { fetchFromVAuto, getVehicleById } = require('../config/vauto');
 const { contactLimiter, sanitize } = require('../middleware/security');
 const db = require('../config/db');
@@ -116,38 +117,19 @@ router.post('/contact', contactLimiter, [
 
   const { name, email, phone, message, vehicleId, preferredLanguage } = req.body;
 
-  const transporter = nodemailer.createTransport({
-    host:             process.env.SMTP_HOST || 'smtp.gmail.com',
-    port:             parseInt(process.env.SMTP_PORT) || 587,
-    secure:           false,
-    connectionTimeout: 5000,  // 5s to connect
-    greetingTimeout:  5000,   // 5s for server greeting
-    socketTimeout:    8000,   // 8s total socket timeout
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const vehicleLine = vehicleId ? `Vehículo de interés: ${sanitize(vehicleId)}` : '';
+  const phoneLine   = phone ? `Teléfono: ${sanitize(phone)}` : '';
+  const langLine    = preferredLanguage ? `Idioma preferido: ${preferredLanguage === 'es' ? 'Español' : 'English'}` : '';
 
-  const vehicleLine = vehicleId ? `\nVehículo de interés: ${sanitize(vehicleId)}` : '';
-  const phoneLine   = phone ? `\nTeléfono: ${sanitize(phone)}` : '';
-  const langLine    = preferredLanguage ? `\nIdioma preferido: ${preferredLanguage === 'es' ? 'Español' : 'English'}` : '';
-
-  const mailOptions = {
-    from: `"Sitio Web - Diego Ortiz Nissan" <${process.env.SMTP_USER}>`,
-    to:   process.env.CONTACT_RECIPIENT || process.env.SMTP_USER,
-    replyTo: email,
-    subject: `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
-    text: [
-      `Nombre: ${sanitize(name)}`,
-      `Correo: ${email}`,
-      phoneLine,
-      vehicleLine,
-      langLine,
-      `\nMensaje:\n${sanitize(message)}`,
-      `\n---\nEnviado desde diegoortiz.com`,
-    ].filter(Boolean).join('\n'),
-  };
+  const emailBody = [
+    `Nombre: ${sanitize(name)}`,
+    `Correo: ${email}`,
+    phoneLine,
+    vehicleLine,
+    langLine,
+    `\nMensaje:\n${sanitize(message)}`,
+    `\n---\nEnviado desde diegoortiz.com`,
+  ].filter(Boolean).join('\n');
 
   // Always save lead to DB first (email is best-effort)
   try {
@@ -165,21 +147,24 @@ router.post('/contact', contactLimiter, [
     console.error('[Contact] DB insert error:', dbErr.message);
   }
 
-  // Send email (best-effort — lead is already saved to DB)
-  // Hard 10s timeout so form never hangs regardless of SMTP state
-  const emailTimeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('SMTP timeout')), 10000)
-  );
+  // Send email via Resend (HTTPS, not SMTP — works on Railway)
+  // Lead is already saved to DB so this is best-effort
   try {
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      await Promise.race([transporter.sendMail(mailOptions), emailTimeout]);
+    if (process.env.RESEND_API_KEY) {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
+        to:       process.env.CONTACT_RECIPIENT,
+        replyTo:  email,
+        subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
+        text:     emailBody,
+      });
     } else {
-      console.log('[Contact] (dev mode, email not sent):', mailOptions.text);
+      console.log('[Contact] (no RESEND_API_KEY, email not sent):', emailBody);
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
     console.error('[Contact] Email error:', e.message);
-    // Lead already saved — respond with success anyway
     res.json({ ok: true, message: '¡Mensaje recibido! Diego te contactará pronto.' });
   }
 });
