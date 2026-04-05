@@ -1,10 +1,17 @@
 const axios = require('axios');
-const NodeCache = require('node-cache');
 
-const cache = new NodeCache({
-  stdTTL: parseInt(process.env.VAUTO_CACHE_TTL_SECONDS) || 300,
-  checkperiod: 60,
-});
+// Simple TTL cache — no external dependency
+const TTL_MS = (parseInt(process.env.VAUTO_CACHE_TTL_SECONDS) || 300) * 1000;
+const _store = new Map();
+const cache = {
+  get: (key) => {
+    const entry = _store.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) { _store.delete(key); return undefined; }
+    return entry.value;
+  },
+  set: (key, value) => { _store.set(key, { value, expiresAt: Date.now() + TTL_MS }); },
+};
 
 const VAUTO_BASE = process.env.VAUTO_API_BASE_URL || 'https://api.vauto.com/v1';
 const DEALER_ID = process.env.VAUTO_DEALER_ID;
