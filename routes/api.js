@@ -2,7 +2,6 @@ const express  = require('express');
 const router   = express.Router();
 const crypto   = require('crypto');
 const { body, query, param, validationResult } = require('express-validator');
-const nodemailer = require('nodemailer');
 const { fetchFromVAuto, getVehicleById } = require('../config/vauto');
 const { contactLimiter, sanitize } = require('../middleware/security');
 const db = require('../config/db');
@@ -146,31 +145,32 @@ router.post('/contact', contactLimiter, [
     console.error('[Contact] DB insert error:', dbErr.message);
   }
 
-  // Send email via Resend SMTP (port 2587 — works on Railway)
+  // Send email via Resend HTTPS API
   try {
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const transporter = nodemailer.createTransport({
-        host:   process.env.SMTP_HOST || 'smtp.resend.com',
-        port:   parseInt(process.env.SMTP_PORT) || 2587,
-        secure: false,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
+    const apiKey = process.env.RESEND_API_KEY;
+    if (apiKey) {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
-        connectionTimeout: 10000,
-        greetingTimeout:   8000,
-        socketTimeout:     10000,
+        body: JSON.stringify({
+          from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
+          to:       [process.env.CONTACT_RECIPIENT],
+          reply_to: email,
+          subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
+          text:     emailBody,
+        }),
       });
-      const info = await transporter.sendMail({
-        from:     `"Diego Ortiz Nissan" <${process.env.RESEND_FROM || 'onboarding@resend.dev'}>`,
-        to:       process.env.CONTACT_RECIPIENT,
-        replyTo:  email,
-        subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
-        text:     emailBody,
-      });
-      console.log('[Contact] Email sent:', info.messageId);
+      const resendData = await resendRes.json();
+      if (resendRes.ok) {
+        console.log('[Contact] Email sent OK:', resendData.id);
+      } else {
+        console.error('[Contact] Resend error:', resendRes.status, JSON.stringify(resendData));
+      }
     } else {
-      console.log('[Contact] No SMTP credentials — email skipped');
+      console.log('[Contact] No RESEND_API_KEY — email skipped');
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
@@ -204,8 +204,6 @@ router.get('/reviews', async (req, res) => {
   res.json(STATIC_FALLBACK);
 });
 
-module.exports = router;
-
 // ─── POST /api/event ──────────────────────────────────────
 const ALLOWED_EVENTS = new Set(['pageview', 'vehicle_view', 'contact_click', 'lang_switch', 'search']);
 
@@ -225,3 +223,5 @@ router.post('/event', [
   } catch (e) { /* silent */ }
   res.status(204).end();
 });
+
+module.exports = router;
