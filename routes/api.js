@@ -146,27 +146,31 @@ router.post('/contact', contactLimiter, [
     console.error('[Contact] DB insert error:', dbErr.message);
   }
 
-  // Send email via Resend (HTTPS, not SMTP — works on Railway)
-  console.log('[Contact] RESEND_API_KEY prefix:', process.env.RESEND_API_KEY?.slice(0,10));
-  console.log('[Contact] CONTACT_RECIPIENT:', process.env.CONTACT_RECIPIENT);
-  console.log('[Contact] RESEND_FROM:', process.env.RESEND_FROM);
+  // Send email via Resend REST API (direct fetch, no SDK quirks)
   try {
     if (process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const result = await resend.emails.send({
-        from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
-        to:       process.env.CONTACT_RECIPIENT,
-        replyTo:  email,
-        subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
-        text:     emailBody,
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
+          to:       [process.env.CONTACT_RECIPIENT],
+          reply_to: email,
+          subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
+          text:     emailBody,
+        }),
       });
-      console.log('[Contact] Resend result:', JSON.stringify(result));
+      const resendData = await resendRes.json();
+      console.log('[Contact] Resend status:', resendRes.status, JSON.stringify(resendData));
     } else {
-      console.log('[Contact] No RESEND_API_KEY set — email skipped');
+      console.log('[Contact] No RESEND_API_KEY — email skipped');
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
-    console.error('[Contact] Email error:', e.message, e);
+    console.error('[Contact] Email error:', e.message);
     res.json({ ok: true, message: '¡Mensaje recibido! Diego te contactará pronto.' });
   }
 });
