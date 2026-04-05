@@ -67,8 +67,12 @@ const serveWithNonce = (filePath) => (req, res) => {
 const INDEX = path.join(__dirname, 'public', 'index.html');
 const ADMIN = path.join(__dirname, 'public', 'admin.html');
 
-app.get('/admin', serveWithNonce(ADMIN));
-app.get('/',      serveWithNonce(INDEX));
+// Block static middleware from ever serving .html files directly
+// so nonce injection via serveWithNonce always runs
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html')) return next('route');
+  next();
+});
 
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0,
@@ -76,7 +80,13 @@ app.use(express.static(path.join(__dirname, 'public'), {
   index: false,
 }));
 
-app.get('*', serveWithNonce(INDEX));
+// HTML routes — always go through nonce injection
+app.get('/admin', serveWithNonce(ADMIN));
+app.get('/',      serveWithNonce(INDEX));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path.includes('.')) return next();
+  serveWithNonce(INDEX)(req, res);
+});
 
 app.use((err, req, res, _next) => {
   console.error('[Server Error]', err.message);
