@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const crypto   = require('crypto');
 const { body, query, param, validationResult } = require('express-validator');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const { fetchFromVAuto, getVehicleById } = require('../config/vauto');
 const { contactLimiter, sanitize } = require('../middleware/security');
 const db = require('../config/db');
@@ -146,27 +146,31 @@ router.post('/contact', contactLimiter, [
     console.error('[Contact] DB insert error:', dbErr.message);
   }
 
-  // Send email via Resend REST API (direct fetch, no SDK quirks)
+  // Send email via Resend SMTP (port 2587 — works on Railway)
   try {
-    if (process.env.RESEND_API_KEY) {
-      const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        host:   process.env.SMTP_HOST || 'smtp.resend.com',
+        port:   parseInt(process.env.SMTP_PORT) || 2587,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
         },
-        body: JSON.stringify({
-          from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
-          to:       [process.env.CONTACT_RECIPIENT],
-          reply_to: email,
-          subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
-          text:     emailBody,
-        }),
+        connectionTimeout: 10000,
+        greetingTimeout:   8000,
+        socketTimeout:     10000,
       });
-      const resendData = await resendRes.json();
-      console.log('[Contact] Resend status:', resendRes.status, JSON.stringify(resendData));
+      const info = await transporter.sendMail({
+        from:     `"Diego Ortiz Nissan" <${process.env.RESEND_FROM || 'onboarding@resend.dev'}>`,
+        to:       process.env.CONTACT_RECIPIENT,
+        replyTo:  email,
+        subject:  `Nuevo contacto: ${sanitize(name)}${vehicleId ? ` - Vehículo ${vehicleId}` : ''}`,
+        text:     emailBody,
+      });
+      console.log('[Contact] Email sent:', info.messageId);
     } else {
-      console.log('[Contact] No RESEND_API_KEY — email skipped');
+      console.log('[Contact] No SMTP credentials — email skipped');
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
