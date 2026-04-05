@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
 
-  <style>
+  <style nonce="NONCE_PLACEHOLDER">
     /* ══════════════════════════════════════════
        TOKENS
     ══════════════════════════════════════════ */
@@ -527,6 +527,11 @@
     .reveal-delay-1 { transition-delay: .1s; }
     .reveal-delay-2 { transition-delay: .2s; }
     .reveal-delay-3 { transition-delay: .3s; }
+    /* ── NO-INLINE-STYLE HELPERS ─────────────────────────── */
+    .about-photo-overlay { position:absolute; inset:0; background:var(--surface2); }
+    .placeholder-svg     { width:80px; height:80px; opacity:.3; }
+    .no-features-msg     { color:var(--muted); font-size:.85rem; }
+
   </style>
 </head>
 <body>
@@ -628,8 +633,8 @@
     <div class="about-grid">
       <div class="about-img-wrap reveal">
         <img id="about-photo" src="" alt="Diego Ortiz" />
-        <div class="hero-photo-placeholder" id="about-placeholder" style="position:absolute;inset:0;background:var(--surface2);">
-          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" fill="none" style="width:80px;height:80px;opacity:.3;">
+        <div class="hero-photo-placeholder" id="about-placeholder" class="about-photo-overlay">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" fill="none" class="placeholder-svg">
             <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
           </svg>
         </div>
@@ -824,7 +829,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="NONCE_PLACEHOLDER">
 /* ═══════════════════════════════════════════════════
    SAFE ESCAPING — prevents XSS when inserting HTML
 ═══════════════════════════════════════════════════ */
@@ -867,6 +872,7 @@ const applyLang = () => {
 
 document.getElementById('lang-btn').addEventListener('click', () => {
   lang = lang === 'es' ? 'en' : 'es';
+  beacon('lang_switch', { lang });
   applyLang();
   renderInventory();
   renderReviews();
@@ -1076,6 +1082,7 @@ const openModal = async (id) => {
     if (!v || v.error) return;
     activeModal = v;
 
+    beacon('vehicle_view', { vehicleId: v.id, vehicleName: v.year + ' ' + v.make + ' ' + v.model });
     document.getElementById('modal-img').src   = escapeHTML(v.images?.[0] || '');
     document.getElementById('modal-img').alt   = escapeHTML(`${v.year} ${v.make} ${v.model}`);
     document.getElementById('modal-meta').textContent  = `${v.year} · ${escapeHTML(v.make)}`;
@@ -1098,12 +1105,13 @@ const openModal = async (id) => {
     const features = v.features || [];
     document.getElementById('modal-features').innerHTML = features.length
       ? features.map(f => `<span class="feat-pill">${escapeHTML(f)}</span>`).join('')
-      : `<span style="color:var(--muted);font-size:.85rem">${lang === 'es' ? 'Sin detalles adicionales' : 'No additional details'}</span>`;
+      : `<span class="no-features-msg">${lang === 'es' ? 'Sin detalles adicionales' : 'No additional details'}</span>`;
 
     document.getElementById('modal-contact-btn').onclick = () => {
       document.getElementById('cf-vehicle').value = safeAttr(v.id);
       closeModal();
-      document.getElementById('contact').scrollIntoView({ behavior: 'smooth' });
+      beacon('contact_click', { source: 'vehicle_modal' });
+    document.getElementById('contact').scrollIntoView({ behavior: 'smooth' });
     };
 
     modalOverlay.classList.add('open');
@@ -1236,6 +1244,31 @@ const initReveal = () => {
   els.forEach(el => obs.observe(el));
 };
 
+
+/* ═══════════════════════════════════════════════════
+   ANALYTICS BEACON
+═══════════════════════════════════════════════════ */
+// Generate or retrieve anonymous session ID (tab-scoped)
+const SESSION_ID = (() => {
+  let id = sessionStorage.getItem('_sid');
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() :
+      Math.random().toString(36).slice(2) + Date.now().toString(36);
+    sessionStorage.setItem('_sid', id);
+  }
+  return id;
+})();
+
+const beacon = (event, payload = null) => {
+  // Fire-and-forget, never blocks the page
+  fetch('/api/event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, sessionId: SESSION_ID, payload }),
+    keepalive: true,
+  }).catch(() => {});
+};
+
 /* ═══════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════ */
@@ -1243,7 +1276,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadInventory();
   renderReviews();
   initReveal();
+  beacon('pageview');
 });
+
 </script>
 </body>
 </html>
