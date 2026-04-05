@@ -1,9 +1,14 @@
-const express = require('express');
-const router = express.Router();
+const express  = require('express');
+const router   = express.Router();
+const crypto   = require('crypto');
 const { body, query, param, validationResult } = require('express-validator');
 const nodemailer = require('nodemailer');
 const { fetchFromVAuto, getVehicleById } = require('../config/vauto');
 const { contactLimiter, sanitize } = require('../middleware/security');
+const db = require('../config/db');
+
+const hashIp = (ip) =>
+  crypto.createHash('sha256').update(ip + (process.env.IP_SALT || 'saltsalt')).digest('hex').slice(0, 16);
 
 // ─── Validation error handler ─────────────────────────────
 const validate = (req, res) => {
@@ -141,70 +146,80 @@ router.post('/contact', contactLimiter, [
     ].filter(Boolean).join('\n'),
   };
 
+  // Always save lead to DB first (email is best-effort)
+  try {
+    db.insertLead({
+      name:      sanitize(name),
+      email:     email,
+      phone:     phone ? sanitize(phone) : null,
+      message:   sanitize(message),
+      vehicleId: vehicleId || null,
+      language:  preferredLanguage || 'es',
+      ipHash:    hashIp(req.ip),
+      userAgent: req.headers['user-agent']?.slice(0, 200) || null,
+    });
+  } catch (dbErr) {
+    console.error('[Contact] DB insert error:', dbErr.message);
+  }
+
+  // Send email (best-effort — lead is already saved to DB)
   try {
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
       await transporter.sendMail(mailOptions);
     } else {
-      // Dev mode: just log
       console.log('[Contact] (dev mode, email not sent):', mailOptions.text);
     }
     res.json({ ok: true, message: '¡Mensaje enviado! Diego te contactará pronto.' });
   } catch (e) {
     console.error('[Contact] Email error:', e.message);
-    res.status(500).json({ error: 'No se pudo enviar el mensaje. Intente más tarde.' });
+    // Lead already saved — don't show error to user
+    res.json({ ok: true, message: '¡Mensaje recibido! Diego te contactará pronto.' });
   }
 });
 
 // ─── GET /api/reviews ─────────────────────────────────────
-// Static for now; could connect to Google My Business API later
-router.get('/reviews', (req, res) => {
-  res.json([
-    {
-      id: 1,
-      author: 'María González',
-      rating: 5,
-      date: '2024-11-12',
-      textEs: 'Diego fue increíble. Habló conmigo en español, me explicó todo con paciencia y conseguí un Rogue a un precio justo. ¡100% recomendado!',
-      textEn: 'Diego was incredible. He spoke with me in Spanish, explained everything patiently, and I got a Rogue at a fair price. Highly recommended!',
-      vehicle: 'Nissan Rogue 2024',
-    },
-    {
-      id: 2,
-      author: 'Carlos & Ana Reyes',
-      rating: 5,
-      date: '2024-10-05',
-      textEs: 'Compramos nuestro primer carro en los Estados Unidos con Diego. Fue muy honesto, sin presión y nos consiguió el mejor financiamiento posible.',
-      textEn: 'We bought our first car in the United States with Diego. He was very honest, no pressure, and got us the best financing possible.',
-      vehicle: 'Nissan Altima 2023',
-    },
-    {
-      id: 3,
-      author: 'Roberto Fuentes',
-      rating: 5,
-      date: '2024-09-18',
-      textEs: 'Diego me ayudó a encontrar la Frontier perfecta para mi trabajo. Conoce muy bien los vehículos y siempre está disponible para responder preguntas.',
-      textEn: 'Diego helped me find the perfect Frontier for my work. He knows vehicles very well and is always available to answer questions.',
-      vehicle: 'Nissan Frontier 2024',
-    },
-    {
-      id: 4,
-      author: 'Lucía Mendoza',
-      rating: 5,
-      date: '2024-08-30',
-      textEs: 'Excelente servicio. Diego se tomó el tiempo de entender mis necesidades y mi presupuesto. Salí muy satisfecha con mi Sentra nueva.',
-      textEn: 'Excellent service. Diego took the time to understand my needs and budget. I left very satisfied with my new Sentra.',
-      vehicle: 'Nissan Sentra 2024',
-    },
-    {
-      id: 5,
-      author: 'Pedro & Sofia Vargas',
-      rating: 5,
-      date: '2024-07-14',
-      textEs: 'La mejor experiencia comprando un carro. Diego habla español perfectamente y nos hizo sentir muy cómodos durante todo el proceso.',
-      textEn: 'The best car buying experience. Diego speaks Spanish perfectly and made us feel very comfortable throughout the entire process.',
-      vehicle: 'Nissan Pathfinder 2024',
-    },
-  ]);
+// Pulls live reviews from DealerRater, filtered by salesman name.
+// Falls back to static reviews if scraping fails or returns nothing.
+const { fetchReviews } = require('../config/dealerrater');
+
+const STATIC_FALLBACK = [
+  { id: 'f1', author: 'María González',    rating: 5, date: '2024-11-12', text: 'Diego fue increíble. Habló conmigo en español, me explicó todo con paciencia y conseguí un Rogue a un precio justo. ¡100% recomendado!', vehicle: 'Nissan Rogue 2024', source: 'fallback' },
+  { id: 'f2', author: 'Carlos & Ana Reyes',rating: 5, date: '2024-10-05', text: 'Compramos nuestro primer carro aquí con Diego. Fue muy honesto, sin presión y nos consiguió el mejor financiamiento posible.',           vehicle: 'Nissan Altima 2023', source: 'fallback' },
+  { id: 'f3', author: 'Roberto Fuentes',   rating: 5, date: '2024-09-18', text: 'Diego me ayudó a encontrar la Frontier perfecta para mi trabajo. Conoce muy bien los vehículos.',                                           vehicle: 'Nissan Frontier 2024', source: 'fallback' },
+  { id: 'f4', author: 'Lucía Mendoza',     rating: 5, date: '2024-08-30', text: 'Excelente servicio. Diego se tomó el tiempo de entender mis necesidades y mi presupuesto.',                                                   vehicle: 'Nissan Sentra 2024', source: 'fallback' },
+  { id: 'f5', author: 'Pedro & Sofia Vargas', rating: 5, date: '2024-07-14', text: 'La mejor experiencia comprando un carro. Diego habla español perfectamente y nos hizo sentir muy cómodos.',                               vehicle: 'Nissan Pathfinder 2024', source: 'fallback' },
+];
+
+router.get('/reviews', async (req, res) => {
+  try {
+    const { reviews } = await fetchReviews();
+    if (reviews && reviews.length > 0) {
+      return res.json(reviews.map((r, i) => ({ ...r, id: `dr-${i}` })));
+    }
+  } catch (e) {
+    console.warn('[Reviews] DealerRater fetch failed, using fallback:', e.message);
+  }
+  res.json(STATIC_FALLBACK);
 });
 
 module.exports = router;
+
+// ─── POST /api/event ──────────────────────────────────────
+const ALLOWED_EVENTS = new Set(['pageview', 'vehicle_view', 'contact_click', 'lang_switch', 'search']);
+
+router.post('/event', [
+  body('event').isIn([...ALLOWED_EVENTS]),
+  body('sessionId').optional().isLength({ max: 64 }).matches(/^[a-zA-Z0-9\-_]+$/),
+  body('payload').optional().isObject(),
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(204).end();
+  try {
+    const { event, sessionId, payload } = req.body;
+    const safePayload = payload ? Object.fromEntries(
+      Object.entries(payload).map(([k, v]) => [k, typeof v === 'string' ? sanitize(v).slice(0, 200) : v])
+    ) : null;
+    db.logEvent({ event, payload: safePayload, sessionId, ipHash: hashIp(req.ip) });
+  } catch (e) { /* silent */ }
+  res.status(204).end();
+});
