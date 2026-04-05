@@ -2,7 +2,6 @@ const express  = require('express');
 const router   = express.Router();
 const crypto   = require('crypto');
 const { body, query, param, validationResult } = require('express-validator');
-const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 const { fetchFromVAuto, getVehicleById } = require('../config/vauto');
 const { contactLimiter, sanitize } = require('../middleware/security');
