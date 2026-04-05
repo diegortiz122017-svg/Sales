@@ -147,7 +147,7 @@ router.post('/contact', contactLimiter, [
   }
 
   // Send email via Resend (HTTPS, not SMTP — works on Railway)
-  console.log('[Contact] RESEND_API_KEY set:', !!process.env.RESEND_API_KEY);
+  console.log('[Contact] RESEND_API_KEY prefix:', process.env.RESEND_API_KEY?.slice(0,10));
   console.log('[Contact] CONTACT_RECIPIENT:', process.env.CONTACT_RECIPIENT);
   console.log('[Contact] RESEND_FROM:', process.env.RESEND_FROM);
   try {
