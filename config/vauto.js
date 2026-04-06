@@ -102,8 +102,17 @@ const normalizeVehicle = (v) => ({
   features: v.features || v.equipmentList || [],
 });
 
-// ─── Fetch from vAuto API ─────────────────────────────────
+// ─── Fetch inventory — MySQL first, mock fallback ─────────
 const fetchFromVAuto = async ({ type, make, model, maxPrice, page = 1, limit = 12 } = {}) => {
+  // Try MySQL inventory first
+  try {
+    const db = require('./db');
+    const count = await db.getInventoryCount();
+    if (count > 0) {
+      return await db.getInventory({ type, make, model, maxPrice, page, limit });
+    }
+  } catch (e) { console.warn('[vauto] DB check failed:', e.message); }
+
   // Fall back to mock/vAuto
   const cacheKey = `inventory:${type}:${make}:${model}:${maxPrice}:${page}`;
   const cached = cache.get(cacheKey);
