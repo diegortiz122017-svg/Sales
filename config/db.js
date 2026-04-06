@@ -100,6 +100,36 @@ const createTables = async () => {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS inventory (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      vin           VARCHAR(20) UNIQUE,
+      stock_number  VARCHAR(50),
+      year          INT,
+      make          VARCHAR(100),
+      model         VARCHAR(100),
+      trim          VARCHAR(100),
+      type          VARCHAR(10) DEFAULT 'used',
+      price         DECIMAL(10,2),
+      mileage       INT DEFAULT 0,
+      ext_color     VARCHAR(100),
+      int_color     VARCHAR(100),
+      transmission  VARCHAR(50),
+      drivetrain    VARCHAR(50),
+      fuel_type     VARCHAR(50),
+      body_style    VARCHAR(50),
+      engine        VARCHAR(100),
+      certified     TINYINT(1) DEFAULT 0,
+      images        TEXT,
+      description   TEXT,
+      features      TEXT,
+      updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_make  (make),
+      INDEX idx_type  (type),
+      INDEX idx_price (price)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   console.log('[DB] Tables ready');
 };
 
@@ -253,8 +283,100 @@ const pruneOldEvents = async () => {
 // No-op save (MySQL writes immediately)
 const save = () => {};
 
+// ── Inventory operations ──────────────────────────────
+const upsertInventory = async (vehicles) => {
+  if (!vehicles.length) return 0;
+  let count = 0;
+  for (const v of vehicles) {
+    await pool.execute(`
+      INSERT INTO inventory (vin, stock_number, year, make, model, trim, type, price, mileage,
+        ext_color, int_color, transmission, drivetrain, fuel_type, body_style, engine,
+        certified, images, description, features)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE
+        stock_number=VALUES(stock_number), year=VALUES(year), make=VALUES(make),
+        model=VALUES(model), trim=VALUES(trim), type=VALUES(type), price=VALUES(price),
+        mileage=VALUES(mileage), ext_color=VALUES(ext_color), int_color=VALUES(int_color),
+        transmission=VALUES(transmission), drivetrain=VALUES(drivetrain),
+        fuel_type=VALUES(fuel_type), body_style=VALUES(body_style), engine=VALUES(engine),
+        certified=VALUES(certified), images=VALUES(images), description=VALUES(description),
+        features=VALUES(features), updated_at=NOW()
+    `, [
+      v.vin || null, v.stockNumber || null, parseInt(v.year) || null,
+      v.make || null, v.model || null, v.trim || null,
+      v.type || 'used', parseFloat(v.price) || 0, parseInt(v.mileage) || 0,
+      v.extColor || null, v.intColor || null, v.transmission || null,
+      v.drivetrain || null, v.fuelType || null, v.bodyStyle || null, v.engine || null,
+      v.certified ? 1 : 0,
+      Array.isArray(v.images) ? v.images.join('|') : (v.images || null),
+      v.description || null,
+      Array.isArray(v.features) ? v.features.join('|') : (v.features || null),
+    ]);
+    count++;
+  }
+  return count;
+};
+
+const getInventory = async ({ type, make, model, maxPrice, page = 1, limit = 12 } = {}) => {
+  const conditions = ['1=1'];
+  const params     = [];
+  if (type)     { conditions.push('type = ?');          params.push(type); }
+  if (make)     { conditions.push('make LIKE ?');       params.push('%' + make + '%'); }
+  if (model)    { conditions.push('model LIKE ?');      params.push('%' + model + '%'); }
+  if (maxPrice) { conditions.push('price <= ?');        params.push(parseFloat(maxPrice)); }
+  const where  = conditions.join(' AND ');
+  const offset = (page - 1) * limit;
+  const [rows] = await pool.execute(
+    `SELECT * FROM inventory WHERE ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+    [...params, parseInt(limit), parseInt(offset)]
+  );
+  const [[{ n }]] = await pool.execute(`SELECT COUNT(*) as n FROM inventory WHERE ${where}`, params);
+  return {
+    vehicles: rows.map(normalizeRow),
+    total: n, page: parseInt(page), limit: parseInt(limit),
+  };
+};
+
+const getInventoryById = async (id) => {
+  const [rows] = await pool.execute('SELECT * FROM inventory WHERE id = ? OR vin = ?', [id, id]);
+  return rows.length ? normalizeRow(rows[0]) : null;
+};
+
+const getInventoryCount = async () => {
+  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM inventory');
+  return n;
+};
+
+const clearInventory = async () => {
+  await pool.execute('DELETE FROM inventory');
+};
+
+const normalizeRow = (r) => ({
+  id:           r.vin || String(r.id),
+  year:         r.year,
+  make:         r.make,
+  model:        r.model,
+  trim:         r.trim,
+  price:        parseFloat(r.price) || 0,
+  mileage:      r.mileage || 0,
+  exteriorColor: r.ext_color,
+  interiorColor: r.int_color,
+  transmission: r.transmission,
+  drivetrain:   r.drivetrain,
+  fuelType:     r.fuel_type,
+  bodyStyle:    r.body_style,
+  engine:       r.engine,
+  vin:          r.vin,
+  stockNumber:  r.stock_number,
+  certified:    !!r.certified,
+  type:         r.type || 'used',
+  images:       r.images ? r.images.split('|').filter(Boolean) : [],
+  features:     r.features ? r.features.split('|').filter(Boolean) : [],
+  description:  r.description,
+});
+
 module.exports = {
-  init,
+  init, upsertInventory, getInventory, getInventoryById, getInventoryCount, clearInventory,
   insertLead, getLeads, markLeadRead, archiveLead, getUnreadCount,
   logEvent, getStats, pruneOldEvents, save,
   insertTestDrive, getTestDrives, markTestDriveRead, archiveTestDrive, confirmTestDrive, getUnreadTestDrives,
