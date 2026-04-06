@@ -51,6 +51,7 @@ app.use('/api', generalLimiter);
 
 app.use('/api', apiRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/inventory-admin', inventoryRoutes);
 
 // ── Serve HTML with nonce injection ───────────────────────
 const serveWithNonce = (filePath) => (req, res) => {
@@ -107,10 +108,11 @@ console.log('Node:', process.version, '| CWD:', process.cwd());
 console.log('__dirname:', __dirname);
 
 const { warmCache } = require('./config/dealerrater');
+const inventoryRoutes = require('./routes/inventory');
 
 db.init()
   .then(() => {
-    try { db.pruneOldEvents(); } catch (e) { console.warn('[pruneOldEvents]', e.message); }
+    db.pruneOldEvents().catch(e => console.warn('[pruneOldEvents]', e.message));
     warmCache(); // pre-fetch DealerRater reviews in background
 
     app.listen(PORT, '0.0.0.0', () => {
