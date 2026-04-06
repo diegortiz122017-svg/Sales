@@ -943,7 +943,7 @@ const applyConfig = (cfg) => {
     heroImg.style.display = 'block';
     document.getElementById('hero-photo-placeholder').style.display = 'none';
     const aboutImg = document.getElementById('about-photo');
-    aboutImg.src = escapeHTML(s.photo);
+    aboutImg.src = escapeHTML(s.photo2 || s.photo);
     aboutImg.style.display = 'block';
     document.getElementById('about-placeholder').style.display = 'none';
   }
