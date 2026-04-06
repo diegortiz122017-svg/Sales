@@ -1,165 +1,1012 @@
-/**
- * admin.js — Protected admin API routes
- * All routes except /api/admin/login require a valid JWT (requireAdmin middleware)
- */
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Diego Ortiz Nissan</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style nonce="NONCE_PLACEHOLDER">
+    :root {
+      --bg:       #0f1117;
+      --surface:  #181c27;
+      --surface2: #1e2336;
+      --border:   rgba(255,255,255,0.07);
+      --gold:     #c8a96e;
+      --gold-dim: #7a6035;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --green:    #34d399;
+      --red:      #f87171;
+      --blue:     #60a5fa;
+      --purple:   #a78bfa;
+      --ff:       'DM Sans', system-ui, sans-serif;
+      --mono:     'DM Mono', monospace;
+      --radius:   6px;
+      --trans:    .2s ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: var(--bg); color: var(--text); font-family: var(--ff); font-size: 14px; line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    button { cursor: pointer; font: inherit; color: inherit; border: none; background: none; }
+    input, textarea, select { font: inherit; color: inherit; background: none; border: none; outline: none; }
 
-const express  = require('express');
-const router   = express.Router();
-const { body, param, query, validationResult } = require('express-validator');
-const rateLimit = require('express-rate-limit');
+    /* ── LOGIN SCREEN ───────────────────────── */
+    #login-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse 60% 60% at 50% 40%, rgba(200,169,110,.07) 0%, transparent 70%);
+    }
+    .login-box {
+      width: 100%; max-width: 380px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 40px;
+    }
+    .login-logo { font-size: 1.1rem; font-weight: 600; color: var(--gold); margin-bottom: 6px; }
+    .login-sub { font-size: .8rem; color: var(--muted); margin-bottom: 32px; }
+    .login-label { display: block; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .login-input {
+      width: 100%; padding: 11px 14px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: .9rem; color: var(--text); margin-bottom: 20px;
+      transition: border-color var(--trans);
+    }
+    .login-input:focus { border-color: var(--gold-dim); }
+    .login-btn {
+      width: 100%; padding: 12px;
+      background: var(--gold); color: #0f1117;
+      font-size: .82rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+      border-radius: var(--radius); transition: background var(--trans);
+    }
+    .login-btn:hover { background: #d4b87a; }
+    .login-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .login-err { font-size: .82rem; color: var(--red); margin-top: 14px; min-height: 18px; text-align: center; }
 
-const db        = require('../config/db');
-const { hashIp, checkBruteForce, recordFailedAttempt, clearAttempts, verifyPassword, issueToken, requireAdmin } = require('../middleware/adminAuth');
-const { sanitize } = require('../middleware/security');
+    /* ── SHELL ──────────────────────────────── */
+    #app { display: none; height: 100vh; display: none; flex-direction: column; }
+    #app.ready { display: flex; }
 
-// ── Validation helper ─────────────────────────────────────
-const validate = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(422).json({ error: 'Datos inválidos', details: errors.array() });
-  return null;
+    /* ── TOPBAR ─────────────────────────────── */
+    .topbar {
+      height: 56px; flex-shrink: 0;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; gap: 16px;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 16px; }
+    .topbar-logo { font-size: .95rem; font-weight: 600; color: var(--gold); }
+    .topbar-badge {
+      padding: 2px 9px; border-radius: 10px;
+      background: var(--red); color: #fff;
+      font-size: .7rem; font-weight: 600;
+      display: none;
+    }
+    .topbar-badge.visible { display: inline-block; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .topbar-nav button {
+      padding: 6px 14px; border-radius: var(--radius);
+      font-size: .78rem; color: var(--muted);
+      transition: color var(--trans), background var(--trans);
+    }
+    .topbar-nav button:hover { color: var(--text); background: var(--surface2); }
+    .topbar-nav button.active { color: var(--text); background: var(--surface2); }
+    .logout-btn {
+      padding: 6px 14px; border-radius: var(--radius);
+      font-size: .78rem; color: var(--muted); border: 1px solid var(--border);
+      transition: var(--trans);
+    }
+    .logout-btn:hover { color: var(--red); border-color: var(--red); }
+
+    /* ── MAIN ───────────────────────────────── */
+    .main { flex: 1; overflow-y: auto; padding: 28px 24px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── STAT CARDS ─────────────────────────── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 14px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .stat-card-label { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .stat-card-value { font-size: 2rem; font-weight: 600; line-height: 1; }
+    .stat-card-value.gold   { color: var(--gold); }
+    .stat-card-value.green  { color: var(--green); }
+    .stat-card-value.blue   { color: var(--blue); }
+    .stat-card-value.purple { color: var(--purple); }
+    .stat-card-value.red    { color: var(--red); }
+    .stat-card-sub { font-size: .75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── CHARTS ─────────────────────────────── */
+    .charts-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 28px; }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px;
+    }
+    .chart-title { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+    .chart-wrap { height: 180px; position: relative; }
+    canvas { width: 100% !important; height: 100% !important; }
+
+    /* ── TOP VEHICLES TABLE ─────────────────── */
+    .table-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; margin-bottom: 28px;
+    }
+    .table-title { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 12px; font-size: .85rem; border-bottom: 1px solid rgba(255,255,255,.03); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .bar-cell { display: flex; align-items: center; gap: 10px; }
+    .bar-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--gold); border-radius: 2px; }
+
+    /* ── LEADS PANEL ────────────────────────── */
+    .leads-toolbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .leads-toolbar select {
+      padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); font-size: .82rem; color: var(--text);
+      cursor: pointer;
+    }
+    .leads-count { font-size: .82rem; color: var(--muted); margin-left: auto; }
+    .lead-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px; margin-bottom: 10px;
+      transition: border-color var(--trans);
+    }
+    .lead-card:hover { border-color: rgba(255,255,255,.15); }
+    .lead-card.unread { border-left: 3px solid var(--gold); }
+    .lead-card.archived { opacity: .5; }
+    .lead-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .lead-name { font-weight: 500; font-size: .95rem; }
+    .lead-date { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+    .lead-meta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+    .lead-meta span { font-size: .78rem; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .lead-meta a { color: var(--blue); }
+    .lead-message { font-size: .85rem; color: var(--muted); line-height: 1.7; margin-bottom: 14px; white-space: pre-wrap; }
+    .lead-vehicle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 10px;
+      background: rgba(200,169,110,.12); color: var(--gold);
+      font-size: .72rem; font-family: var(--mono);
+      margin-bottom: 12px;
+    }
+    .lead-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lead-btn {
+      padding: 5px 13px; border-radius: var(--radius); font-size: .75rem;
+      border: 1px solid var(--border); color: var(--muted);
+      transition: var(--trans);
+    }
+    .lead-btn:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+    .lead-btn.danger:hover { color: var(--red); border-color: var(--red); }
+    .unread-dot {
+      display: inline-block; width: 7px; height: 7px;
+      background: var(--gold); border-radius: 50%; margin-right: 6px;
+    }
+
+    /* ── LANG PILL ──────────────────────────── */
+    .lang-pill {
+      padding: 2px 8px; border-radius: 10px; font-size: .68rem; font-family: var(--mono);
+      border: 1px solid var(--border);
+    }
+
+    /* ── PAGINATION ─────────────────────────── */
+    .pagination { display: flex; gap: 6px; margin-top: 16px; }
+    .pg-btn {
+      width: 32px; height: 32px; border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); font-size: .82rem; color: var(--muted);
+      transition: var(--trans);
+    }
+    .pg-btn:hover, .pg-btn.active { border-color: var(--gold); color: var(--gold); }
+
+    /* ── LOADING / EMPTY ────────────────────── */
+    .loading-wrap { display: flex; align-items: center; gap: 12px; padding: 40px 0; color: var(--muted); font-size: .9rem; }
+    .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 60px 0; color: var(--muted); font-size: .9rem; }
+
+    /* ── RANGE SELECTOR ─────────────────────── */
+    .range-select {
+      padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); font-size: .78rem; color: var(--text); cursor: pointer;
+    }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .section-heading { font-size: .78rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+
+    /* ── NO-INLINE-STYLE HELPERS ─────────────────────────── */
+    .th-w200             { width: 200px; }
+    .charts-row--half    { grid-template-columns: 1fr 1fr; }
+    .chart-wrap--sm      { height: 160px; }
+    .funnel-wrap         { padding-top: 8px; }
+    .funnel-step         { margin-bottom: 10px; }
+    .funnel-row          { display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); margin-bottom:4px; }
+    .funnel-val          { color:var(--text); font-weight:500; }
+    .funnel-track        { height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+    .funnel-bar          { height:100%; width:var(--fw,0%); background:var(--fc,var(--gold)); border-radius:3px; transition:width .5s ease; }
+    .bar-fill            { height:100%; width:var(--bar-w,0%); background:var(--gold); border-radius:2px; }
+    .td-empty            { color:var(--muted); text-align:center; padding:20px; }
+    .td-rank             { color:var(--muted); width:32px; }
+    .td-vehicle          { font-family:var(--mono); font-size:.8rem; }
+    .td-views            { color:var(--gold); font-weight:500; }
+    @media(max-width: 700px) {
+      .charts-row { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: repeat(2,1fr); }
+      .topbar-nav { display: none; }
+    }
+
+    /* ── INVENTORY PANEL ── */
+    .inv-desc     { font-size:.82rem; color:var(--muted); margin-bottom:16px; line-height:1.7; }
+    .inv-upload-row { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+    .inv-file-label { display:block; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+    .inv-file-input { font-size:.82rem; color:var(--text); }
+    .inv-check-col  { display:flex; flex-direction:column; gap:8px; padding-top:22px; }
+    .inv-check-label { display:flex; align-items:center; gap:8px; font-size:.82rem; color:var(--muted); cursor:pointer; }
+    .inv-btn-row    { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+    .inv-upload-btn { width:auto; padding:10px 24px; }
+    .inv-msg        { margin-top:14px; font-size:.85rem; display:none; }
+    .inv-status-txt { color:var(--muted); font-size:.85rem; }
+    .inv-badge      { font-size:.78rem; color:var(--muted); }
+    .inv-card-mb    { margin-bottom:20px; }
+    .td-badge-hidden { display:none; }
+    /* test drive card helpers */
+    .td-meta-mt     { margin-top:8px; }
+    .td-msg-mt      { margin-top:10px; }
+    .td-actions-mt  { margin-top:12px; }
+    .td-confirmed   { color:var(--green); font-size:.75rem; margin-left:8px; }
+    .td-confirm-btn { color:var(--green); border-color:var(--green); }
+    .lang-nodata { height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.82rem; }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Diego Ortiz Nissan</div>
+    <div class="login-sub">Panel de Administración</div>
+    <label class="login-label" for="pw-input">Contraseña</label>
+    <input class="login-input" type="password" id="pw-input" autocomplete="current-password" placeholder="••••••••" />
+    <button class="login-btn" id="login-btn">Entrar</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ══ APP SHELL ══════════════════════════════════════════ -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-logo">Admin</span>
+      <span class="topbar-badge" id="unread-badge">0</span>
+    </div>
+    <nav class="topbar-nav" id="topbar-nav">
+      <button data-panel="dashboard" class="active">Dashboard</button>
+      <button data-panel="leads">Leads</button>
+      <button data-panel="inventory">Inventario</button>
+      <button data-panel="testdrives">Pruebas de Manejo <span id="td-badge" class="topbar-badge td-badge-hidden">0</span></button>
+    </nav>
+    <div class="topbar-right">
+      <button class="logout-btn" id="logout-btn">Salir</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- ── DASHBOARD PANEL ── -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="section-header">
+        <span class="section-heading">Resumen</span>
+        <select class="range-select" id="range-select">
+          <option value="7">Últimos 7 días</option>
+          <option value="14" selected>Últimos 14 días</option>
+          <option value="30">Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+        </select>
+      </div>
+
+      <div class="stat-grid" id="stat-grid">
+        <div class="loading-wrap"><div class="spinner"></div><span>Cargando...</span></div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-title">Visitas diarias</div>
+          <div class="chart-wrap"><canvas id="visits-chart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Leads por día</div>
+          <div class="chart-wrap"><canvas id="leads-chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-title">Vehículos más vistos</div>
+        <table id="top-vehicles-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Vehículo</th>
+              <th>Vistas</th>
+              <th class="th-w200"></th>
+            </tr>
+          </thead>
+          <tbody id="top-vehicles-body"></tbody>
+        </table>
+      </div>
+
+      <div class="charts-row charts-row--half">
+        <div class="chart-card">
+          <div class="chart-title">Idioma preferido (leads)</div>
+          <div class="chart-wrap chart-wrap--sm"><canvas id="lang-chart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Funnel de conversión</div>
+          <div id="funnel-wrap" class="funnel-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LEADS PANEL ── -->
+    <div class="panel" id="panel-leads">
+      <div class="leads-toolbar">
+        <span class="section-heading">Leads</span>
+        <select id="leads-filter">
+          <option value="0">Activos</option>
+          <option value="1">Archivados</option>
+        </select>
+        <span class="leads-count" id="leads-count"></span>
+      </div>
+      <div id="leads-list"></div>
+      <div class="pagination" id="leads-pagination"></div>
+    </div>
+  
+    <!-- ── INVENTORY PANEL ── -->
+    <div class="panel" id="panel-inventory">
+      <div class="section-header">
+        <span class="section-heading">Inventario CSV</span>
+        <span id="inv-total-badge" class="inv-badge"></span>
+      </div>
+
+      <div class="table-card inv-card-mb">
+        <div class="table-title">Subir inventario desde CSV</div>
+        <p class="inv-desc">
+          Exporta el inventario desde vAuto como CSV y súbelo aquí. El sistema detecta automáticamente
+          las columnas: VIN, Year, Make, Model, Trim, Price, Mileage, Color, Photos, etc.
+        </p>
+        <div class="inv-upload-row">
+          <div>
+            <label class="inv-file-label">Archivo CSV</label>
+            <input type="file" id="inv-file-input" accept=".csv" class="inv-file-input" />
+          </div>
+          <div class="inv-check-col">
+            <label class="inv-check-label">
+              <input type="checkbox" id="inv-clear-first" checked />
+              Reemplazar inventario existente
+            </label>
+          </div>
+        </div>
+        <div class="inv-btn-row">
+          <button class="form-submit inv-upload-btn" id="inv-upload-btn">
+            Subir CSV
+          </button>
+          <button class="lead-btn danger" id="inv-clear-btn">Limpiar todo el inventario</button>
+        </div>
+        <div id="inv-msg" class="inv-msg"></div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-title">Estado del inventario</div>
+        <div id="inv-status" class="inv-status-txt">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- ── TEST DRIVES PANEL ── -->
+    <div class="panel" id="panel-testdrives">
+      <div class="leads-toolbar">
+        <span class="section-heading">Pruebas de Manejo</span>
+        <select id="td-filter">
+          <option value="0">Activas</option>
+          <option value="1">Archivadas</option>
+        </select>
+        <span class="leads-count" id="td-count"></span>
+      </div>
+      <div id="td-list"></div>
+      <div class="pagination" id="td-pagination"></div>
+    </div>
+
+</div>
+</div>
+
+<script nonce="NONCE_PLACEHOLDER">
+/* ═══════════════════════════════════════════════════════
+   SECURITY: escape all user-supplied content before
+   inserting into the DOM.
+═══════════════════════════════════════════════════════ */
+const esc = (s) => {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
 };
 
-// ── Strict login rate limiter ─────────────────────────────
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true, legacyHeaders: false,
-  message: { error: 'Demasiados intentos. Espera 15 minutos.' },
-  keyGenerator: (req) => hashIp(req.ip),
-});
+/* ── Token storage (sessionStorage — cleared on tab close) */
+const TOKEN_KEY = 'do_admin_token';
+let token = sessionStorage.getItem(TOKEN_KEY);
 
-// ══════════════════════════════════════════════════════════
-//  POST /api/admin/login
-// ══════════════════════════════════════════════════════════
-router.post('/login', loginLimiter, [
-  body('password').notEmpty().isLength({ min: 1, max: 200 }),
-], async (req, res) => {
-  if (validate(req, res)) return;
+/* ── Chart instances */
+let visitsChart = null, leadsChart = null, langChart = null;
 
-  const ipHash = hashIp(req.ip);
+/* ── State */
+let leadsPage      = 1;
+let leadsArchived  = '0';
+let statsRange     = 14;
 
-  // Brute-force check
-  if (checkBruteForce(ipHash)) {
-    return res.status(429).json({ error: 'Cuenta bloqueada temporalmente. Intenta en 15 minutos.' });
+/* ═══════════════════════════════════════════════════════
+   AUTH
+═══════════════════════════════════════════════════════ */
+const setToken = (t) => { token = t; sessionStorage.setItem(TOKEN_KEY, t); };
+const clearToken = () => { token = null; sessionStorage.removeItem(TOKEN_KEY); };
+
+const apiFetch = async (url, options = {}) => {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    const data = await res.json().catch(() => ({}));
+    if (data.expired) showLoginError('Sesión expirada. Inicia sesión de nuevo.');
+    clearToken();
+    showLogin();
+    return null;
   }
+  return res;
+};
 
-  const storedHash = process.env.ADMIN_PASSWORD_HASH;
-  if (!storedHash) {
-    console.error('[Admin] ADMIN_PASSWORD_HASH not set in environment');
-    return res.status(503).json({ error: 'Admin no configurado. Contacta al desarrollador.' });
-  }
+const showLogin = () => {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').classList.remove('ready');
+};
 
-  const { password } = req.body;
+const showApp = () => {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('ready');
+  loadDashboard();
+  pollUnread();
+};
 
-  const ok = await verifyPassword(password, storedHash);
-  if (!ok) {
-    recordFailedAttempt(ipHash);
-    // Deliberate generic message to avoid user enumeration
-    return res.status(401).json({ error: 'Contraseña incorrecta.' });
-  }
+const showLoginError = (msg) => {
+  document.getElementById('login-err').textContent = msg;
+};
 
-  clearAttempts(ipHash);
-  const token = issueToken({ role: 'admin' });
-  res.json({ token, expiresIn: '8h' });
-});
+/* ── Login flow */
+const doLogin = async () => {
+  const pw  = document.getElementById('pw-input').value;
+  const btn = document.getElementById('login-btn');
+  if (!pw) return;
 
-// ══════════════════════════════════════════════════════════
-//  All routes below require valid JWT
-// ══════════════════════════════════════════════════════════
-router.use(requireAdmin);
+  btn.disabled = true;
+  btn.textContent = 'Verificando…';
+  showLoginError('');
 
-// ── GET /api/admin/stats ──────────────────────────────────
-router.get('/stats', [
-  query('days').optional().isInt({ min: 1, max: 90 }).toInt(),
-], async (req, res) => {
-  if (validate(req, res)) return;
   try {
-    const stats = await db.getStats({ days: req.query.days || 14 });
-    res.json(stats);
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.token) {
+      setToken(data.token);
+      document.getElementById('pw-input').value = '';
+      showApp();
+    } else {
+      showLoginError(data.error || 'Error al iniciar sesión.');
+    }
+  } catch {
+    showLoginError('Error de red.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+};
+
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('logout-btn').addEventListener('click', () => { clearToken(); showLogin(); });
+
+/* ── Nav tabs */
+document.querySelectorAll('[data-panel]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-panel]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${btn.dataset.panel}`).classList.add('active');
+    if (btn.dataset.panel === 'leads') loadLeads();
+    if (btn.dataset.panel === 'testdrives') { if (typeof loadTestDrives === 'function') loadTestDrives(); }
+  });
+});
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════════════ */
+const loadDashboard = async () => {
+  const res = await apiFetch(`/api/admin/stats?days=${statsRange}`);
+  if (!res) return;
+  const data = await res.json();
+  renderStats(data.summary);
+  renderVisitsChart(data.dailyVisits || []);
+  renderLeadsChart(data.leadsByDay || []);
+  renderTopVehicles(data.topVehicles || []);
+  renderLangChart(data.langBreakdown || []);
+  renderFunnel(data.summary);
+};
+
+document.getElementById('range-select').addEventListener('change', (e) => {
+  statsRange = parseInt(e.target.value);
+  loadDashboard();
+});
+
+const renderStats = (s) => {
+  const cards = [
+    { label: 'Visitas totales',   value: s.totalVisits,    color: 'blue',   sub: `${s.uniqueSessions} sesiones únicas` },
+    { label: 'Vistas de vehículos', value: s.vehicleViews, color: 'purple', sub: 'aperturas de modal' },
+    { label: 'Clicks en contacto', value: s.contactClicks, color: 'gold',   sub: 'intenciones de contacto' },
+    { label: 'Leads recibidos',   value: s.totalLeads,     color: 'green',  sub: 'formularios enviados' },
+    { label: 'Leads sin leer',    value: s.unreadLeads,    color: s.unreadLeads > 0 ? 'red' : 'muted', sub: 'pendientes de revisión' },
+  ];
+  document.getElementById('stat-grid').innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-card-label">${esc(c.label)}</div>
+      <div class="stat-card-value ${esc(c.color)}">${esc(String(c.value))}</div>
+      <div class="stat-card-sub">${esc(c.sub)}</div>
+    </div>
+  `).join('');
+};
+
+/* ── Minimal bar-chart renderer (no external deps) */
+const drawBarChart = (canvasId, labels, datasets, instance) => {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+  const ctx = canvas.getContext('2d');
+
+  const W = canvas.offsetWidth  || 400;
+  const H = canvas.offsetHeight || 180;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const PAD = { top: 16, right: 16, bottom: 40, left: 40 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top  - PAD.bottom;
+
+  const allVals = datasets.flatMap(d => d.data);
+  const maxVal  = Math.max(...allVals, 1);
+  const barW    = (chartW / labels.length) * 0.6;
+  const gap     = chartW / labels.length;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD.top + chartH - (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + chartW, y); ctx.stroke();
+  }
+
+  // Bars
+  datasets.forEach((ds, di) => {
+    ds.data.forEach((val, i) => {
+      const barH  = (val / maxVal) * chartH;
+      const x     = PAD.left + gap * i + gap * 0.2 + (di * (barW / datasets.length));
+      const y     = PAD.top + chartH - barH;
+      const bw    = barW / datasets.length - 2;
+
+      ctx.fillStyle = ds.color;
+      ctx.beginPath();
+      ctx.roundRect
+        ? ctx.roundRect(x, y, bw, barH, [2, 2, 0, 0])
+        : ctx.rect(x, y, bw, barH);
+      ctx.fill();
+    });
+  });
+
+  // X labels
+  ctx.fillStyle = 'rgba(100,116,139,0.8)';
+  ctx.font = `${10 * devicePixelRatio / devicePixelRatio}px DM Sans, sans-serif`;
+  ctx.textAlign = 'center';
+  labels.forEach((lbl, i) => {
+    const x = PAD.left + gap * i + gap / 2;
+    ctx.fillText(lbl, x, H - PAD.bottom + 14);
+  });
+
+  return ctx;
+};
+
+const drawDoughnut = (canvasId, segments) => {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const S = Math.min(canvas.offsetWidth || 160, canvas.offsetHeight || 160);
+  canvas.width  = S * devicePixelRatio;
+  canvas.height = S * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const total = segments.reduce((a, s) => a + s.value, 0) || 1;
+  const cx = S / 2, cy = S / 2, r = S * 0.38, ir = S * 0.22;
+  let angle = -Math.PI / 2;
+
+  segments.forEach(seg => {
+    const sweep = (seg.value / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angle, angle + sweep);
+    ctx.closePath();
+    ctx.fillStyle = seg.color;
+    ctx.fill();
+
+    // inner circle (donut hole)
+    ctx.beginPath();
+    ctx.arc(cx, cy, ir, 0, Math.PI * 2);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#181c27';
+    ctx.fill();
+
+    angle += sweep;
+  });
+
+  // Center label
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = `bold ${14}px DM Sans, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(total, cx, cy);
+};
+
+const fmt = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
+};
+
+const renderVisitsChart = (daily) => {
+  const labels   = daily.map(d => fmt(d.date));
+  const visits   = daily.map(d => d.visits || 0);
+  const uniq     = daily.map(d => d.unique_visits || 0);
+  drawBarChart('visits-chart', labels,
+    [{ data: visits, color: 'rgba(96,165,250,0.7)' }, { data: uniq, color: 'rgba(167,139,250,0.7)' }]);
+};
+
+const renderLeadsChart = (daily) => {
+  const labels = daily.map(d => fmt(d.date));
+  const counts = daily.map(d => d.count || 0);
+  drawBarChart('leads-chart', labels, [{ data: counts, color: 'rgba(52,211,153,0.8)' }]);
+};
+
+const renderTopVehicles = (vehicles) => {
+  const tbody = document.getElementById('top-vehicles-body');
+  if (!vehicles.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="td-empty">Sin datos aún</td></tr>';
+    return;
+  }
+  const max = vehicles[0]?.views || 1;
+  tbody.innerHTML = vehicles.map((v, i) => `
+    <tr>
+      <td class="td-rank">${i + 1}</td>
+      <td class="td-vehicle">${esc(v.vehicle_name || v.vehicle_id || '—')}</td>
+      <td class="td-views">${esc(String(v.views))}</td>
+      <td>
+        <div class="bar-cell">
+          <div class="bar-track"><div class="bar-fill" data-w="${Math.round((v.views/max)*100)}"></div></div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+};
+
+const renderLangChart = (breakdown) => {
+  const wrap = document.getElementById('lang-chart').parentElement;
+  if (!breakdown || !breakdown.length) {
+    wrap.innerHTML = '<div class="lang-nodata">Sin datos aún</div>';
+    return;
+  }
+  const colors = { es: '#c8a96e', en: '#60a5fa' };
+  const segs = breakdown.map(b => ({ value: b.count, color: colors[b.language] || '#64748b', label: b.language }));
+  drawDoughnut('lang-chart', segs);
+};
+
+const renderFunnel = (s) => {
+  const steps = [
+    { label: 'Visitas', value: s.totalVisits, color: 'var(--blue)' },
+    { label: 'Vistas de vehículo', value: s.vehicleViews, color: 'var(--purple)' },
+    { label: 'Clicks en contacto', value: s.contactClicks, color: 'var(--gold)' },
+    { label: 'Leads enviados', value: s.totalLeads, color: 'var(--green)' },
+  ];
+  const max = steps[0].value || 1;
+  document.getElementById('funnel-wrap').innerHTML = steps.map(st => `
+    <div class="funnel-step">
+      <div class="funnel-row">
+        <span>${esc(st.label)}</span>
+        <span class="funnel-val">${esc(String(st.value))}</span>
+      </div>
+      <div class="funnel-track">
+        <div class="funnel-bar" data-w="${Math.round((st.value/max)*100)}" data-c="${st.color}"></div>
+      </div>
+    </div>
+  `).join('');
+};
+
+/* ═══════════════════════════════════════════════════════
+   LEADS
+═══════════════════════════════════════════════════════ */
+const loadLeads = async () => {
+  document.getElementById('leads-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Cargando leads...</span></div>';
+  const res = await apiFetch(`/api/admin/leads?page=${leadsPage}&limit=15&archived=${leadsArchived}`);
+  if (!res) return;
+  const data = await res.json();
+  renderLeads(data);
+};
+
+const renderLeads = (data) => {
+  const list = document.getElementById('leads-list');
+  document.getElementById('leads-count').textContent = `${data.total} total`;
+
+  if (!data.leads?.length) {
+    list.innerHTML = '<div class="empty-state">No hay leads en esta categoría.</div>';
+    document.getElementById('leads-pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = data.leads.map(lead => {
+    const isUnread   = !lead.read_at;
+    const isArchived = lead.archived == 1;
+    const date       = new Date(lead.created_at).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    const vehiclePill = lead.vehicle_id
+      ? `<div class="lead-vehicle">🚗 ${esc(lead.vehicle_id)}</div>`
+      : '';
+
+    return `
+      <div class="lead-card ${isUnread ? 'unread' : ''} ${isArchived ? 'archived' : ''}" data-id="${esc(String(lead.id))}">
+        <div class="lead-header">
+          <div class="lead-name">
+            ${isUnread ? '<span class="unread-dot"></span>' : ''}${esc(lead.name)}
+            <span class="lang-pill">${esc(lead.language || 'es')}</span>
+          </div>
+          <div class="lead-date">${esc(date)}</div>
+        </div>
+        <div class="lead-meta">
+          <span>✉ <a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a></span>
+          ${lead.phone ? `<span>📞 <a href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a></span>` : ''}
+        </div>
+        ${vehiclePill}
+        <div class="lead-message">${esc(lead.message)}</div>
+        <div class="lead-actions">
+          ${isUnread ? `<button class="lead-btn" onclick="markRead(${esc(String(lead.id))})">✓ Marcar leído</button>` : ''}
+          ${!isArchived ? `<button class="lead-btn danger" onclick="archiveLead(${esc(String(lead.id))})">Archivar</button>` : ''}
+          <a href="mailto:${esc(lead.email)}?subject=Tu consulta en Younger Nissan" class="lead-btn">Responder</a>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Pagination
+  const pages = Math.ceil(data.total / 15);
+  const pag   = document.getElementById('leads-pagination');
+  pag.innerHTML = Array.from({ length: pages }, (_, i) => i + 1).map(p => `
+    <button class="pg-btn ${p === leadsPage ? 'active' : ''}" onclick="goLeadsPage(${p})">${p}</button>
+  `).join('');
+};
+
+const markRead = async (id) => {
+  await apiFetch(`/api/admin/leads/${id}/read`, { method: 'PATCH' });
+  loadLeads();
+  pollUnread();
+};
+
+const archiveLead = async (id) => {
+  await apiFetch(`/api/admin/leads/${id}/archive`, { method: 'PATCH' });
+  loadLeads();
+};
+
+const goLeadsPage = (p) => { leadsPage = p; loadLeads(); };
+
+document.getElementById('leads-filter').addEventListener('change', (e) => {
+  leadsArchived = e.target.value;
+  leadsPage     = 1;
+  loadLeads();
+});
+
+/* ═══════════════════════════════════════════════════════
+   UNREAD BADGE POLLING
+═══════════════════════════════════════════════════════ */
+const pollUnread = async () => {
+  const res = await apiFetch('/api/admin/unread');
+  if (!res) return;
+  const { count } = await res.json();
+  const badge = document.getElementById('unread-badge');
+  badge.textContent = count;
+  badge.classList.toggle('visible', count > 0);
+};
+
+// Poll every 90 seconds
+setInterval(() => { if (token) pollUnread(); }, 90_000);
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════ */
+if (token) {
+  showApp();
+  setTimeout(() => pollTdUnread(), 0);
+} else {
+  showLogin();
+}
+
+/* ═══════════════════════════════════════════════════
+   TEST DRIVES
+═══════════════════════════════════════════════════ */
+let tdPage     = 1;
+let tdArchived = '0';
+
+const loadTestDrives = async () => {
+  document.getElementById('td-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Cargando...</span></div>';
+  const res = await apiFetch(`/api/admin/test-drives?page=${tdPage}&archived=${tdArchived}`);
+  if (!res) return;
+  const data = await res.json();
+  renderTestDrives(data);
+};
+
+const renderTestDrives = (data) => {
+  const list = document.getElementById('td-list');
+  document.getElementById('td-count').textContent = `${data.total} total`;
+
+  if (!data.testDrives?.length) {
+    list.innerHTML = '<div class="empty-state">No hay solicitudes en esta categoría.</div>';
+    document.getElementById('td-pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = data.testDrives.map(t => {
+    const isUnread = !t.read_at;
+    const date     = new Date(t.created_at).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    return `
+      <div class="lead-card ${isUnread ? 'unread' : ''} ${t.archived ? 'archived' : ''}" data-id="${esc(String(t.id))}">
+        <div class="lead-header">
+          <div class="lead-name">
+            ${isUnread ? '<span class="unread-dot"></span>' : ''}
+            ${esc(t.name)}
+            ${t.confirmed ? '<span class="td-confirmed">✓ Confirmada</span>' : ''}
+            <span class="lang-pill">${esc(t.language || 'es')}</span>
+          </div>
+          <div class="lead-date">${esc(date)}</div>
+        </div>
+        <div class="lead-meta">
+          <span>✉ <a href="mailto:${esc(t.email)}">${esc(t.email)}</a></span>
+          ${t.phone ? `<span>📞 <a href="tel:${esc(t.phone)}">${esc(t.phone)}</a></span>` : ''}
+        </div>
+        ${t.vehicle_name ? `<div class="lead-vehicle">🚗 ${esc(t.vehicle_name)}</div>` : ''}
+        <div class="lead-meta td-meta-mt">
+          <span>📅 ${esc(t.preferred_date)}</span>
+          ${t.preferred_time ? `<span>🕐 ${esc(t.preferred_time)}</span>` : ''}
+        </div>
+        ${t.message ? `<div class="lead-message td-msg-mt">${esc(t.message)}</div>` : ''}
+        <div class="lead-actions td-actions-mt">
+          ${isUnread ? `<button class="lead-btn" onclick="markTdRead(${esc(String(t.id))})">✓ Marcar leída</button>` : ''}
+          ${!t.confirmed ? `<button class="lead-btn td-confirm-btn" onclick="confirmTd(${esc(String(t.id))})">✓ Confirmar</button>` : ''}
+          ${!t.archived ? `<button class="lead-btn danger" onclick="archiveTd(${esc(String(t.id))})">Archivar</button>` : ''}
+          <a href="mailto:${esc(t.email)}?subject=Prueba de manejo confirmada — ${esc(t.vehicle_name || '')}" class="lead-btn">Responder</a>
+          <a href="tel:${esc(t.phone || '')}" class="lead-btn">Llamar</a>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const pages = Math.ceil(data.total / 15);
+  const pag   = document.getElementById('td-pagination');
+  pag.innerHTML = Array.from({ length: pages }, (_, i) => i + 1).map(p =>
+    `<button class="pg-btn ${p === tdPage ? 'active' : ''}" onclick="goTdPage(${p})">${p}</button>`
+  ).join('');
+};
+
+const markTdRead = async (id) => { await apiFetch(`/api/admin/test-drives/${id}/read`,    { method: 'PATCH' }); loadTestDrives(); pollTdUnread(); };
+const archiveTd  = async (id) => { await apiFetch(`/api/admin/test-drives/${id}/archive`, { method: 'PATCH' }); loadTestDrives(); };
+const confirmTd  = async (id) => { await apiFetch(`/api/admin/test-drives/${id}/confirm`, { method: 'PATCH' }); loadTestDrives(); };
+const goTdPage   = (p) => { tdPage = p; loadTestDrives(); };
+
+document.getElementById('td-filter').addEventListener('change', (e) => {
+  tdArchived = e.target.value; tdPage = 1; loadTestDrives();
+});
+
+const pollTdUnread = async () => {
+  const res = await apiFetch('/api/admin/test-drives/unread');
+  if (!res) return;
+  const { count } = await res.json();
+  const badge = document.getElementById('td-badge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-block' : 'none';
+};
+
+setInterval(() => { if (token) pollTdUnread(); }, 90_000);
+
+
+/* ═══════════════════════════════════════════════════
+   INVENTORY UPLOAD
+═══════════════════════════════════════════════════ */
+const loadInvStatus = async () => {
+  const res = await apiFetch('/api/inventory-admin/stats');
+  if (!res) return;
+  const data = await res.json();
+  const badge  = document.getElementById('inv-total-badge');
+  const status = document.getElementById('inv-status');
+  if (badge)  badge.textContent  = `${data.total} vehículos en inventario`;
+  if (status) status.textContent = data.total > 0
+    ? `✅ ${data.total} vehículos cargados en el inventario activo.`
+    : '⚠️ Inventario vacío — sube un CSV para mostrar vehículos reales en el sitio.';
+};
+
+document.getElementById('inv-upload-btn').addEventListener('click', async () => {
+  const file = document.getElementById('inv-file-input').files[0];
+  if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
+  const clearFirst = document.getElementById('inv-clear-first').checked;
+  const btn = document.getElementById('inv-upload-btn');
+  const msg = document.getElementById('inv-msg');
+  btn.disabled = true;
+  btn.textContent = 'Subiendo...';
+  msg.style.display = 'none';
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('clearFirst', clearFirst);
+  try {
+    const res = await fetch('/api/inventory-admin/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json();
+    msg.style.display = 'block';
+    if (data.ok) {
+      msg.style.color = 'var(--green)';
+      msg.textContent = data.message;
+      loadInvStatus();
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.textContent = data.error || 'Error al subir.';
+      if (data.sample) msg.textContent += ' Columnas detectadas: ' + data.sample.join(', ');
+    }
   } catch (e) {
-    console.error('[Admin/stats]', e.message);
-    res.status(500).json({ error: 'Error al obtener estadísticas' });
+    msg.style.display = 'block';
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Error de red.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Subir CSV';
   }
 });
 
-// ── GET /api/admin/leads ──────────────────────────────────
-router.get('/leads', [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
-  query('archived').optional().isIn(['0', '1']),
-], async (req, res) => {
-  if (validate(req, res)) return;
-  try {
-    const { page = 1, limit = 20, archived = '0' } = req.query;
-    const data = await db.getLeads({ page, limit, archived: parseInt(archived) });
-    res.json(data);
-  } catch (e) {
-    console.error('[Admin/leads]', e.message);
-    res.status(500).json({ error: 'Error al obtener leads' });
-  }
+document.getElementById('inv-clear-btn').addEventListener('click', async () => {
+  if (!confirm('¿Eliminar todo el inventario? Los vehículos mock volverán a mostrarse en el sitio.')) return;
+  const res = await fetch('/api/inventory-admin/', {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.ok) { alert('Inventario eliminado.'); loadInvStatus(); }
 });
 
-// ── PATCH /api/admin/leads/:id/read ──────────────────────
-router.patch('/leads/:id/read', [
-  param('id').isInt({ min: 1 }).toInt(),
-], async (req, res) => {
-  if (validate(req, res)) return;
-  try {
-    await db.markLeadRead(req.params.id);
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Error al marcar como leído' });
-  }
+// Load inv status when tab is clicked
+document.querySelectorAll('[data-panel]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.panel === 'inventory') { if (typeof loadInvStatus === 'function') loadInvStatus(); }
+  });
 });
 
-// ── PATCH /api/admin/leads/:id/archive ───────────────────
-router.patch('/leads/:id/archive', [
-  param('id').isInt({ min: 1 }).toInt(),
-], async (req, res) => {
-  if (validate(req, res)) return;
-  try {
-    await db.archiveLead(req.params.id);
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Error al archivar lead' });
-  }
-});
-
-// ── GET /api/admin/unread ─────────────────────────────────
-router.get('/unread', async (req, res) => {
-  try {
-    res.json({ count: await db.getUnreadCount() });
-  } catch (e) {
-    res.status(500).json({ error: 'Error' });
-  }
-});
-
-// ── POST /api/admin/prune ─────────────────────────────────
-router.post('/prune', async (req, res) => {
-  try {
-    await db.pruneOldEvents();
-    res.json({ ok: true, message: 'Eventos antiguos eliminados (>90 días)' });
-  } catch (e) {
-    res.status(500).json({ error: 'Error al limpiar' });
-  }
-});
-
-module.exports = router;
-
-// ── GET /api/admin/test-drives ────────────────────────
-const { getTestDrives, markTestDriveRead, archiveTestDrive, confirmTestDrive, getUnreadTestDrives } = require('../config/db');
-
-router.get('/test-drives', requireAdmin, [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('archived').optional().isIn(['0','1']),
-], async (req, res) => {
-  try {
-    const { page = 1, archived = '0' } = req.query;
-    res.json(await getTestDrives({ page, limit: 15, archived: parseInt(archived) }));
-  } catch(e) { res.status(500).json({ error: 'Error' }); }
-});
-
-router.patch('/test-drives/:id/read',    requireAdmin, async (req, res) => { try { await markTestDriveRead(req.params.id);  res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
-router.patch('/test-drives/:id/archive', requireAdmin, async (req, res) => { try { await archiveTestDrive(req.params.id);   res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
-router.patch('/test-drives/:id/confirm', requireAdmin, async (req, res) => { try { await confirmTestDrive(req.params.id);   res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
-router.get('/test-drives/unread',        requireAdmin, async (req, res) => { try { res.json({ count: await getUnreadTestDrives() }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
+</script>
+</body>
+</html>
