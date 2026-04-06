@@ -66,6 +66,11 @@ const FIELD_MAP = {
   'description': 'description', 'comments': 'description', 'vehicle comments': 'description',
   // Features
   'features': 'features', 'options': 'features', 'equipment': 'features',
+  // vAuto specific column names
+  'stock#': 'stockNumber', 'stock #': 'stockNumber',
+  'n/u/t': 'type', 'new/used/trade': 'type',
+  'ext. color': 'extColor', 'int. color': 'intColor',
+  'miles': 'mileage',
 };
 
 const normalizeKey = (key) => (key || '').toLowerCase().trim().replace(/[_\-]+/g, ' ');
@@ -80,14 +85,23 @@ const mapRow = (row, headers) => {
     }
   }
 
-  // Normalize type field
+  // Normalize type field — handles N/U/T codes from vAuto
   if (vehicle.type) {
-    const t = vehicle.type.toLowerCase();
-    if (t.includes('new'))  vehicle.type = 'new';
-    else if (t.includes('cert')) vehicle.type = 'certified';
+    const t = vehicle.type.toLowerCase().trim();
+    if (t === 'n' || t.includes('new'))  vehicle.type = 'new';
+    else if (t === 'c' || t.includes('cert')) vehicle.type = 'certified';
     else vehicle.type = 'used';
   } else {
     vehicle.type = 'used';
+  }
+
+  // Extract drivetrain from Trim if not already set (vAuto embeds it e.g. "SV 4DR ALL-WHEEL DRIVE")
+  if (!vehicle.drivetrain && vehicle.trim) {
+    const t = vehicle.trim.toUpperCase();
+    if (t.includes('ALL-WHEEL') || t.includes('AWD')) vehicle.drivetrain = 'AWD';
+    else if (t.includes('4WD') || t.includes('FOUR-WHEEL')) vehicle.drivetrain = '4WD';
+    else if (t.includes('FRONT-WHEEL') || t.includes('FWD')) vehicle.drivetrain = 'FWD';
+    else if (t.includes('REAR-WHEEL') || t.includes('RWD')) vehicle.drivetrain = 'RWD';
   }
 
   // Normalize certified field
