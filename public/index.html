@@ -256,6 +256,10 @@
       border: 1px solid var(--border); border-radius: 20px;
       color: var(--muted); transition: var(--trans);
     }
+    .inv-brand-filters-wrap { display:none; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .inv-brand-filters-wrap.visible { display:flex; }
+    .brand-btn { padding:5px 14px; font-size:.72rem; font-weight:500; letter-spacing:.04em; text-transform:uppercase; border:1px solid var(--border); border-radius:20px; cursor:pointer; background:none; color:var(--muted); transition:all var(--trans); }
+    .brand-btn:hover, .brand-btn.active { border-color:var(--gold); color:var(--gold); background:rgba(26,58,92,.06); }
     .filter-btn:hover, .filter-btn.active {
       border-color: var(--gold); color: var(--gold);
       background: rgba(26,58,92,.06);
@@ -603,6 +607,61 @@
     }
     .btn-test-drive:hover { background: #264d7a; transform: translateY(-1px); }
     @media(max-width:480px) { .td-time-grid { grid-template-columns: 1fr; } }
+
+    /* ── ADVANCED FILTER PANEL ──────────────────────── */
+    .inv-filter-panel {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 20px 24px;
+      margin-bottom: 28px; box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+    .inv-filter-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .inv-filter-title {
+      font-size: .72rem; font-weight: 600; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .inv-filter-reset {
+      font-size: .75rem; color: var(--gold); cursor: pointer;
+      background: none; border: none; padding: 0; font-weight: 500;
+      opacity: 0; transition: opacity var(--trans); pointer-events: none;
+    }
+    .inv-filter-reset.visible { opacity: 1; pointer-events: all; }
+    .inv-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .inv-filter-group label {
+      display: block; font-size: .7rem; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .inv-filter-group select {
+      width: 100%; padding: 8px 12px; font-size: .85rem;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); color: var(--text);
+      cursor: pointer; transition: border-color var(--trans);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7585' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+      padding-right: 28px;
+    }
+    .inv-filter-group select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(26,58,92,.08); }
+    .inv-search-input { width:100%; padding:8px 12px; font-size:.85rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); transition:border-color var(--trans); }
+    .inv-search-input:focus { border-color:var(--gold); outline:none; box-shadow:0 0 0 3px rgba(26,58,92,.08); }
+    .inv-filter-count {
+      font-size: .78rem; color: var(--muted); margin-bottom: 20px;
+      text-align: center;
+    }
+    .inv-filter-count strong { color: var(--gold); }
+    @media(max-width:600px) {
+      .inv-filter-grid { grid-template-columns: 1fr 1fr; }
+      .inv-filter-panel { padding: 16px; }
+    }
+    @media(max-width:380px) { .inv-filter-grid { grid-template-columns: 1fr; } }
+
     /* ── NO-INLINE-STYLE HELPERS ─────────────────────────── */
     .about-photo-overlay { position:absolute; inset:0; background:var(--surface2); }
     .placeholder-svg     { width:80px; height:80px; opacity:.3; }
@@ -672,25 +731,85 @@
       </p>
     </div>
 
-    <div class="inv-filters reveal">
-      <button class="filter-btn active" data-filter="">
-        <span data-es="Todos" data-en="All">Todos</span>
-      </button>
-      <button class="filter-btn" data-filter="new">
-        <span data-es="Nuevos" data-en="New">Nuevos</span>
-      </button>
-      <button class="filter-btn" data-filter="used">
-        <span data-es="Usados" data-en="Used">Usados</span>
-      </button>
-      <button class="filter-btn" data-filter="certified">
-        <span data-es="Certificados" data-en="Certified">Certificados</span>
-      </button>
+    <div class="inv-filter-panel reveal">
+      <div class="inv-filter-header">
+        <span class="inv-filter-title" data-es="Filtros" data-en="Filters">Filtros</span>
+        <button class="inv-filter-reset" id="inv-reset-btn" data-es="Limpiar filtros" data-en="Clear filters">Limpiar filtros</button>
+      </div>
+      <div class="inv-filter-grid">
+        <div class="inv-filter-group">
+          <label data-es="Búsqueda" data-en="Search">Búsqueda</label>
+          <input class="form-control inv-search-input" type="text" id="inv-search-input" placeholder="Modelo, marca..." autocomplete="off" maxlength="80" />
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Condición" data-en="Condition">Condición</label>
+          <select id="filter-type">
+            <option value="" data-es="Todos" data-en="All">Todos</option>
+            <option value="new" data-es="Nuevo" data-en="New">Nuevo</option>
+            <option value="used" data-es="Usado" data-en="Used">Usado</option>
+            <option value="certified" data-es="Certificado" data-en="Certified">Certificado</option>
+          </select>
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Marca" data-en="Brand">Marca</label>
+          <select id="filter-make">
+            <option value="" data-es="Todas" data-en="All">Todas</option>
+          </select>
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Precio máx." data-en="Max Price">Precio máx.</label>
+          <select id="filter-price">
+            <option value="">Sin límite</option>
+            <option value="15000">$15,000</option>
+            <option value="20000">$20,000</option>
+            <option value="25000">$25,000</option>
+            <option value="30000">$30,000</option>
+            <option value="40000">$40,000</option>
+            <option value="50000">$50,000</option>
+          </select>
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Año mín." data-en="Min Year">Año mín.</label>
+          <select id="filter-year">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Millaje máx." data-en="Max Mileage">Millaje máx.</label>
+          <select id="filter-mileage">
+            <option value="">Sin límite</option>
+            <option value="15000">15,000 mi</option>
+            <option value="30000">30,000 mi</option>
+            <option value="60000">60,000 mi</option>
+            <option value="100000">100,000 mi</option>
+          </select>
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Tracción" data-en="Drivetrain">Tracción</label>
+          <select id="filter-drivetrain">
+            <option value="">Todas</option>
+            <option value="AWD">AWD</option>
+            <option value="FWD">FWD</option>
+            <option value="RWD">RWD</option>
+            <option value="4WD">4WD</option>
+          </select>
+        </div>
+        <div class="inv-filter-group">
+          <label data-es="Carrocería" data-en="Body Style">Carrocería</label>
+          <select id="filter-body">
+            <option value="">Todas</option>
+            <option value="SUV">SUV</option>
+            <option value="Sedan">Sedan</option>
+            <option value="Truck">Truck / Pickup</option>
+            <option value="Van">Van / Minivan</option>
+            <option value="Coupe">Coupe</option>
+            <option value="Hatchback">Hatchback</option>
+          </select>
+        </div>
+      </div>
     </div>
 
-    <div class="inv-search reveal">
-      <input type="text" id="inv-search-input" placeholder="Buscar por modelo..." autocomplete="off" maxlength="80" />
-      <button id="inv-search-btn" data-es="Buscar" data-en="Search">Buscar</button>
-    </div>
+    <div class="inv-filter-count reveal" id="inv-count"></div>
 
     <div id="inv-grid">
       <div class="inv-loading">
@@ -1000,7 +1119,7 @@ const safeAttr = (str) => {
 ═══════════════════════════════════════════════════ */
 let lang      = 'es';
 let config    = null;
-let invState  = { type: '', search: '', page: 1, total: 0, limit: 12 };
+let invState  = { type: '', make: '', search: '', maxPrice: '', minYear: '', maxMileage: '', drivetrain: '', bodyStyle: '', page: 1, total: 0, limit: 12 };
 let activeModal = null;
 
 /* ═══════════════════════════════════════════════════
@@ -1154,12 +1273,20 @@ const loadInventory = async () => {
   pagination.innerHTML = '';
 
   const params = new URLSearchParams({ page: invState.page, limit: invState.limit });
-  if (invState.type)   params.set('type', invState.type);
-  if (invState.search) params.set('model', invState.search);
+  if (invState.type)      params.set('type',       invState.type);
+  if (invState.make)      params.set('make',       invState.make);
+  if (invState.search)    params.set('model',      invState.search);
+  if (invState.maxPrice)  params.set('maxPrice',   invState.maxPrice);
+  if (invState.minYear)   params.set('minYear',    invState.minYear);
+  if (invState.maxMileage)params.set('maxMileage', invState.maxMileage);
+  if (invState.drivetrain)params.set('drivetrain', invState.drivetrain);
+  if (invState.bodyStyle) params.set('bodyStyle',  invState.bodyStyle);
 
   try {
     const data = await fetch(`/api/inventory?${params}`).then(r => r.json());
     invState.total = data.total;
+  const countEl = document.getElementById('inv-count');
+  if (countEl) countEl.innerHTML = `<strong>${data.total}</strong> ${lang === 'es' ? 'vehículos encontrados' : 'vehicles found'}`;
     renderInventoryGrid(data.vehicles || []);
     renderPagination(data.total, data.page, data.limit);
   } catch {
@@ -1199,27 +1326,67 @@ const renderPagination = (total, page, limit) => {
   });
 };
 
-// Filters
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    invState.type = btn.dataset.filter;
-    invState.page = 1;
-    loadInventory();
+
+/* ── ADVANCED FILTERS ────────────────────────────── */
+const filterChanged = () => { invState.page = 1; loadInventory(); updateResetBtn(); };
+
+const updateResetBtn = () => {
+  const active = invState.type || invState.make || invState.search ||
+    invState.maxPrice || invState.minYear || invState.maxMileage ||
+    invState.drivetrain || invState.bodyStyle;
+  document.getElementById('inv-reset-btn').classList.toggle('visible', !!active);
+};
+
+document.getElementById('inv-reset-btn').addEventListener('click', () => {
+  invState = { ...invState, type:'', make:'', search:'', maxPrice:'', minYear:'', maxMileage:'', drivetrain:'', bodyStyle:'', page:1 };
+  document.getElementById('inv-search-input').value  = '';
+  document.getElementById('filter-type').value       = '';
+  document.getElementById('filter-make').value       = '';
+  document.getElementById('filter-price').value      = '';
+  document.getElementById('filter-year').value       = '';
+  document.getElementById('filter-mileage').value    = '';
+  document.getElementById('filter-drivetrain').value = '';
+  document.getElementById('filter-body').value       = '';
+  updateResetBtn();
+  loadInventory();
+});
+
+document.getElementById('inv-search-input').addEventListener('input', () => {
+  invState.search = document.getElementById('inv-search-input').value.trim().slice(0, 80);
+  clearTimeout(window._searchTimer);
+  window._searchTimer = setTimeout(() => filterChanged(), 400);
+});
+
+['filter-type','filter-make','filter-price','filter-year','filter-mileage','filter-drivetrain','filter-body'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    invState.type       = document.getElementById('filter-type').value;
+    invState.make       = document.getElementById('filter-make').value;
+    invState.maxPrice   = document.getElementById('filter-price').value;
+    invState.minYear    = document.getElementById('filter-year').value;
+    invState.maxMileage = document.getElementById('filter-mileage').value;
+    invState.drivetrain = document.getElementById('filter-drivetrain').value;
+    invState.bodyStyle  = document.getElementById('filter-body').value;
+    filterChanged();
   });
 });
 
-// Search
-const searchInput = document.getElementById('inv-search-input');
-const searchBtn   = document.getElementById('inv-search-btn');
-const doSearch = () => {
-  invState.search = searchInput.value.trim().replace(/[^a-zA-Z0-9\s\-]/g, '').slice(0, 80);
-  invState.page = 1;
-  loadInventory();
+// Populate make and year dropdowns from live inventory
+const buildBrandFilters = (vehicles) => {
+  const makeSelect  = document.getElementById('filter-make');
+  const makes = [...new Set(vehicles.map(v => v.make).filter(Boolean).map(m => m.toUpperCase()))].sort();
+  const currentMake = makeSelect.value;
+  makeSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+    makes.map(m => `<option value="${escapeHTML(m)}" ${currentMake === m ? 'selected' : ''}>${escapeHTML(m)}</option>`).join('');
 };
-searchBtn.addEventListener('click', doSearch);
-searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+const buildYearFilter = (vehicles) => {
+  const yearSelect = document.getElementById('filter-year');
+  const years = [...new Set(vehicles.map(v => v.year).filter(Boolean))].sort((a, b) => b - a);
+  const currentYear = yearSelect.value;
+  yearSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todos' : 'All'}</option>` +
+    years.map(y => `<option value="${y}" ${currentYear == y ? 'selected' : ''}>${y}</option>`).join('');
+};
+
 
 /* ═══════════════════════════════════════════════════
    VEHICLE MODAL
