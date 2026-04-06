@@ -156,7 +156,7 @@ router.get('/test-drives', requireAdmin, [
   try {
     const { page = 1, archived = '0' } = req.query;
     res.json(await getTestDrives({ page, limit: 15, archived: parseInt(archived) }));
-  } catch(e) { res.status(500).json({ error: 'Error' }); }
+  } catch(e) { console.error('[Admin/test-drives]', e.message); res.status(500).json({ error: e.message }); }
 });
 
 router.patch('/test-drives/:id/read',    requireAdmin, async (req, res) => { try { await markTestDriveRead(req.params.id);  res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
