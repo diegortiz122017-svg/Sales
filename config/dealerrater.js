@@ -150,11 +150,13 @@ const fetchReviews = async () => {
     _cache     = allReviews;
     _cacheTime = Date.now();
     console.log(`[DealerRater] Fetched ${allReviews.length} reviews for "${name}"`);
-    return { reviews: allReviews, fromCache: false };
+    const rotated = allReviews.sort(() => Math.random() - 0.5).slice(0, 6);
+    return { reviews: rotated, fromCache: false };
   }
 
   console.warn(`[DealerRater] No reviews found for "${name}" — using static fallback`);
-  return { reviews: STATIC_REVIEWS, fromCache: false, static: true };
+  const shuffled = [...STATIC_REVIEWS].sort(() => Math.random() - 0.5).slice(0, 6);
+  return { reviews: shuffled, fromCache: false, static: true };
 };
 
 // ── Warm the cache on startup (non-blocking) ─────────────
