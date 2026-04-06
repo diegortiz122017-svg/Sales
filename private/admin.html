@@ -789,8 +789,8 @@ const renderLeads = (data) => {
         ${vehiclePill}
         <div class="lead-message">${esc(lead.message)}</div>
         <div class="lead-actions">
-          ${isUnread ? `<button class="lead-btn" onclick="markRead(${esc(String(lead.id))})">✓ Marcar leído</button>` : ''}
-          ${!isArchived ? `<button class="lead-btn danger" onclick="archiveLead(${esc(String(lead.id))})">Archivar</button>` : ''}
+          ${isUnread ? `<button class="lead-btn" data-action="mark-read" data-id="${esc(String(lead.id))}">✓ Marcar leído</button>` : ''}
+          ${!isArchived ? `<button class="lead-btn danger" data-action="archive-lead" data-id="${esc(String(lead.id))}">Archivar</button>` : ''}
           <a href="mailto:${esc(lead.email)}?subject=Tu consulta en Younger Nissan" class="lead-btn">Responder</a>
         </div>
       </div>
@@ -801,7 +801,7 @@ const renderLeads = (data) => {
   const pages = Math.ceil(data.total / 15);
   const pag   = document.getElementById('leads-pagination');
   pag.innerHTML = Array.from({ length: pages }, (_, i) => i + 1).map(p => `
-    <button class="pg-btn ${p === leadsPage ? 'active' : ''}" onclick="goLeadsPage(${p})">${p}</button>
+    <button class="pg-btn ${p === leadsPage ? 'active' : ''}" data-action="leads-page" data-page="${p}">${p}</button>
   `).join('');
 };
 
@@ -898,9 +898,9 @@ const renderTestDrives = (data) => {
         </div>
         ${t.message ? `<div class="lead-message td-msg-mt">${esc(t.message)}</div>` : ''}
         <div class="lead-actions td-actions-mt">
-          ${isUnread ? `<button class="lead-btn" onclick="markTdRead(${esc(String(t.id))})">✓ Marcar leída</button>` : ''}
-          ${!t.confirmed ? `<button class="lead-btn td-confirm-btn" onclick="confirmTd(${esc(String(t.id))})">✓ Confirmar</button>` : ''}
-          ${!t.archived ? `<button class="lead-btn danger" onclick="archiveTd(${esc(String(t.id))})">Archivar</button>` : ''}
+          ${isUnread ? `<button class="lead-btn" data-action="td-read" data-id="${esc(String(t.id))}">✓ Marcar leída</button>` : ''}
+          ${!t.confirmed ? `<button class="lead-btn td-confirm-btn" data-action="td-confirm" data-id="${esc(String(t.id))}">✓ Confirmar</button>` : ''}
+          ${!t.archived ? `<button class="lead-btn danger" data-action="td-archive" data-id="${esc(String(t.id))}">Archivar</button>` : ''}
           <a href="mailto:${esc(t.email)}?subject=Prueba de manejo confirmada — ${esc(t.vehicle_name || '')}" class="lead-btn">Responder</a>
           <a href="tel:${esc(t.phone || '')}" class="lead-btn">Llamar</a>
         </div>
@@ -911,7 +911,7 @@ const renderTestDrives = (data) => {
   const pages = Math.ceil(data.total / 15);
   const pag   = document.getElementById('td-pagination');
   pag.innerHTML = Array.from({ length: pages }, (_, i) => i + 1).map(p =>
-    `<button class="pg-btn ${p === tdPage ? 'active' : ''}" onclick="goTdPage(${p})">${p}</button>`
+    `<button class="pg-btn ${p === tdPage ? 'active' : ''}" data-action="td-page" data-page="${p}">${p}</button>`
   ).join('');
 };
 
@@ -1005,6 +1005,23 @@ document.querySelectorAll('[data-panel]').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.panel === 'inventory') { if (typeof loadInvStatus === 'function') loadInvStatus(); }
   });
+});
+
+
+/* ── EVENT DELEGATION (replaces all onclick attributes) ── */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const { action, id, page } = btn.dataset;
+  switch (action) {
+    case 'mark-read':    markRead(id);               break;
+    case 'archive-lead': archiveLead(id);             break;
+    case 'leads-page':   goLeadsPage(parseInt(page)); break;
+    case 'td-read':      markTdRead(id);              break;
+    case 'td-confirm':   confirmTd(id);               break;
+    case 'td-archive':   archiveTd(id);               break;
+    case 'td-page':      goTdPage(parseInt(page));    break;
+  }
 });
 
 </script>
