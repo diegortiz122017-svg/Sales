@@ -143,6 +143,7 @@ const insertLead = async ({ name, email, phone, message, vehicleId, language, ip
 };
 
 const getLeads = async ({ page = 1, limit = 20, archived = 0 } = {}) => {
+  page = parseInt(page); limit = parseInt(limit);
   const offset = (page - 1) * limit;
   const [rows]  = await pool.execute(
     'SELECT * FROM leads WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
@@ -176,6 +177,7 @@ const insertTestDrive = async ({ name, email, phone, vehicleId, vehicleName, pre
 };
 
 const getTestDrives = async ({ page = 1, limit = 15, archived = 0 } = {}) => {
+  page = parseInt(page); limit = parseInt(limit);
   const offset = (page - 1) * limit;
   const [rows]  = await pool.execute(
     'SELECT * FROM test_drives WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
@@ -318,6 +320,7 @@ const upsertInventory = async (vehicles) => {
 };
 
 const getInventory = async ({ type, make, model, maxPrice, page = 1, limit = 12 } = {}) => {
+  page = parseInt(page); limit = parseInt(limit);
   const conditions = ['1=1'];
   const params     = [];
   if (type)     { conditions.push('type = ?');          params.push(type); }
