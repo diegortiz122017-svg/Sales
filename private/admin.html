@@ -266,6 +266,7 @@
     <nav class="topbar-nav" id="topbar-nav">
       <button data-panel="dashboard" class="active">Dashboard</button>
       <button data-panel="leads">Leads</button>
+      <button data-panel="inventory">Inventario</button>
       <button data-panel="testdrives">Pruebas de Manejo <span id="td-badge" class="topbar-badge" style="display:none">0</span></button>
     </nav>
     <div class="topbar-right">
@@ -342,6 +343,46 @@
       <div class="pagination" id="leads-pagination"></div>
     </div>
   
+    <!-- ── INVENTORY PANEL ── -->
+    <div class="panel" id="panel-inventory">
+      <div class="section-header">
+        <span class="section-heading">Inventario CSV</span>
+        <span id="inv-total-badge" style="font-size:.78rem;color:var(--muted)"></span>
+      </div>
+
+      <div class="table-card" style="margin-bottom:20px">
+        <div class="table-title">Subir inventario desde CSV</div>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:16px;line-height:1.7">
+          Exporta el inventario desde vAuto como CSV y súbelo aquí. El sistema detecta automáticamente
+          las columnas: VIN, Year, Make, Model, Trim, Price, Mileage, Color, Photos, etc.
+        </p>
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div>
+            <label style="display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Archivo CSV</label>
+            <input type="file" id="inv-file-input" accept=".csv" style="font-size:.82rem;color:var(--text)" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:22px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted);cursor:pointer">
+              <input type="checkbox" id="inv-clear-first" checked />
+              Reemplazar inventario existente
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+          <button class="form-submit" id="inv-upload-btn" style="width:auto;padding:10px 24px">
+            Subir CSV
+          </button>
+          <button class="lead-btn danger" id="inv-clear-btn">Limpiar todo el inventario</button>
+        </div>
+        <div id="inv-msg" style="margin-top:14px;font-size:.85rem;display:none"></div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-title">Estado del inventario</div>
+        <div id="inv-status" style="color:var(--muted);font-size:.85rem">Cargando...</div>
+      </div>
+    </div>
+
     <!-- ── TEST DRIVES PANEL ── -->
     <div class="panel" id="panel-testdrives">
       <div class="leads-toolbar">
@@ -871,6 +912,78 @@ const pollTdUnread = async () => {
 };
 
 setInterval(() => { if (token) pollTdUnread(); }, 90_000);
+
+
+/* ═══════════════════════════════════════════════════
+   INVENTORY UPLOAD
+═══════════════════════════════════════════════════ */
+const loadInvStatus = async () => {
+  const res = await apiFetch('/api/inventory-admin/stats');
+  if (!res) return;
+  const data = await res.json();
+  const badge  = document.getElementById('inv-total-badge');
+  const status = document.getElementById('inv-status');
+  if (badge)  badge.textContent  = `${data.total} vehículos en inventario`;
+  if (status) status.textContent = data.total > 0
+    ? `✅ ${data.total} vehículos cargados en el inventario activo.`
+    : '⚠️ Inventario vacío — sube un CSV para mostrar vehículos reales en el sitio.';
+};
+
+document.getElementById('inv-upload-btn').addEventListener('click', async () => {
+  const file = document.getElementById('inv-file-input').files[0];
+  if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
+  const clearFirst = document.getElementById('inv-clear-first').checked;
+  const btn = document.getElementById('inv-upload-btn');
+  const msg = document.getElementById('inv-msg');
+  btn.disabled = true;
+  btn.textContent = 'Subiendo...';
+  msg.style.display = 'none';
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('clearFirst', clearFirst);
+  try {
+    const res = await fetch('/api/inventory-admin/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json();
+    msg.style.display = 'block';
+    if (data.ok) {
+      msg.style.color = 'var(--green)';
+      msg.textContent = data.message;
+      loadInvStatus();
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.textContent = data.error || 'Error al subir.';
+      if (data.sample) msg.textContent += ' Columnas detectadas: ' + data.sample.join(', ');
+    }
+  } catch (e) {
+    msg.style.display = 'block';
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Error de red.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Subir CSV';
+  }
+});
+
+document.getElementById('inv-clear-btn').addEventListener('click', async () => {
+  if (!confirm('¿Eliminar todo el inventario? Los vehículos mock volverán a mostrarse en el sitio.')) return;
+  const res = await fetch('/api/inventory-admin/', {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.ok) { alert('Inventario eliminado.'); loadInvStatus(); }
+});
+
+// Load inv status when tab is clicked
+document.querySelectorAll('[data-panel]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.panel === 'inventory') loadInvStatus();
+  });
+});
 
 </script>
 </body>
