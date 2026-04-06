@@ -633,9 +633,14 @@ const renderTopVehicles = (vehicles) => {
 };
 
 const renderLangChart = (breakdown) => {
+  const wrap = document.getElementById('lang-chart').parentElement;
+  if (!breakdown || !breakdown.length) {
+    wrap.innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.82rem">Sin datos aún</div>';
+    return;
+  }
   const colors = { es: '#c8a96e', en: '#60a5fa' };
   const segs = breakdown.map(b => ({ value: b.count, color: colors[b.language] || '#64748b', label: b.language }));
-  drawDoughnut('lang-chart', segs.length ? segs : [{ value: 1, color: '#1e2336' }]);
+  drawDoughnut('lang-chart', segs);
 };
 
 const renderFunnel = (s) => {
