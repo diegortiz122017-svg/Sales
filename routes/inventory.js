@@ -8,6 +8,7 @@ const express  = require('express');
 const router   = express.Router();
 const multer   = require('multer');
 const { parse } = require('csv-parse');
+const XLSX      = require('xlsx');
 const { requireAdmin } = require('../middleware/adminAuth');
 const db = require('../config/db');
 
@@ -16,11 +17,13 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV files are accepted'));
-    }
+    const name = file.originalname.toLowerCase();
+    const ok = name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls') ||
+      file.mimetype === 'text/csv' ||
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.mimetype === 'application/vnd.ms-excel';
+    if (ok) cb(null, true);
+    else cb(new Error('Solo se aceptan archivos CSV, XLS o XLSX'));
   },
 });
 
@@ -68,9 +71,14 @@ const FIELD_MAP = {
   'features': 'features', 'options': 'features', 'equipment': 'features',
   // vAuto specific column names
   'stock#': 'stockNumber', 'stock #': 'stockNumber',
-  'n/u/t': 'type', 'new/used/trade': 'type',
+  'n/u/t': 'type', 'new/used/trade': 'type', 'exit strategy': 'type',
   'ext. color': 'extColor', 'int. color': 'intColor',
-  'miles': 'mileage',
+  'miles': 'mileage', 'odometer': 'mileage',
+  'series': 'trim', 'series detail': 'trim',
+  'color': 'extColor',
+  'interior\ndescription': 'intColor', 'interior description': 'intColor',
+  'body': 'bodyStyle', 'body style': 'bodyStyle', 'body type': 'bodyStyle',
+  'certified': 'certified',
 };
 
 const normalizeKey = (key) => (key || '').toLowerCase().trim().replace(/[_\-]+/g, ' ');
@@ -85,14 +93,20 @@ const mapRow = (row, headers) => {
     }
   }
 
-  // Normalize type field — handles N/U/T codes from vAuto
+  // Normalize type field
+  // Primary signal: stock number pattern — pure numeric = new, contains letters = used
+  // Secondary signal: N/U/T or Exit Strategy field value
+  const stockStr = String(vehicle.stockNumber || '');
+  const stockIsNumeric = stockStr.length > 0 && /^[0-9]+$/.test(stockStr);
+
   if (vehicle.type) {
     const t = vehicle.type.toLowerCase().trim();
-    if (t === 'n' || t.includes('new'))  vehicle.type = 'new';
+    if (t === 'n' || t.includes('new'))       vehicle.type = 'new';
     else if (t === 'c' || t.includes('cert')) vehicle.type = 'certified';
-    else vehicle.type = 'used';
+    else if (stockIsNumeric)                  vehicle.type = 'new';
+    else                                      vehicle.type = 'used';
   } else {
-    vehicle.type = 'used';
+    vehicle.type = stockIsNumeric ? 'new' : 'used';
   }
 
   // Extract drivetrain from Trim if not already set (vAuto embeds it e.g. "SV 4DR ALL-WHEEL DRIVE")
@@ -107,7 +121,7 @@ const mapRow = (row, headers) => {
   // Normalize certified field
   if (vehicle.certified) {
     const c = String(vehicle.certified).toLowerCase();
-    vehicle.certified = c === 'yes' || c === 'true' || c === '1' || c === 'y';
+    vehicle.certified = c === 'yes' || c === 'true' || c === '1' || c === 'y' || c === 'cpo';
   } else {
     vehicle.certified = vehicle.type === 'certified';
   }
@@ -137,20 +151,29 @@ router.post('/upload', requireAdmin, upload.single('file'), async (req, res) => 
   const clearFirst = req.body.clearFirst === 'true' || req.body.clearFirst === true;
 
   try {
-    const csvText = req.file.buffer.toString('utf8');
+    const filename = req.file.originalname.toLowerCase();
+    let records;
 
-    // Parse CSV
-    const records = await new Promise((resolve, reject) => {
-      parse(csvText, {
-        columns:          true,
-        skip_empty_lines: true,
-        trim:             true,
-        bom:              true, // handle BOM from Excel exports
-      }, (err, data) => {
-        if (err) reject(err);
-        else resolve(data);
+    if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+      // Parse Excel
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+      records        = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    } else {
+      // Parse CSV
+      const csvText = req.file.buffer.toString('utf8');
+      records = await new Promise((resolve, reject) => {
+        parse(csvText, {
+          columns:          true,
+          skip_empty_lines: true,
+          trim:             true,
+          bom:              true,
+        }, (err, data) => {
+          if (err) reject(err);
+          else resolve(data);
+        });
       });
-    });
+    }
 
     if (!records.length) {
       return res.status(400).json({ error: 'CSV is empty or has no data rows' });
