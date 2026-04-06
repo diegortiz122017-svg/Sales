@@ -1371,7 +1371,8 @@ const tdForm    = document.getElementById('td-form');
 const tdMsg     = document.getElementById('td-msg');
 const tdSubmit  = document.getElementById('td-submit');
 
-document.getElementById('td-date').min = new Date().toISOString().split('T')[0];
+const tdDateEl = document.getElementById('td-date');
+if (tdDateEl) tdDateEl.min = new Date().toISOString().split('T')[0];
 
 const openTdModal = (vehicleId, vehicleName) => {
   document.getElementById('td-vehicle-id').value   = vehicleId   || '';
