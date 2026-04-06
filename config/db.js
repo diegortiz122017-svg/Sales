@@ -145,11 +145,10 @@ const insertLead = async ({ name, email, phone, message, vehicleId, language, ip
 const getLeads = async ({ page = 1, limit = 20, archived = 0 } = {}) => {
   page = parseInt(page); limit = parseInt(limit); archived = parseInt(archived);
   const offset = (page - 1) * limit;
-  const [rows]  = await pool.execute(
-    'SELECT * FROM leads WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [archived, parseInt(limit), parseInt(offset)]
+  const [rows]  = await pool.query(
+    `SELECT * FROM leads WHERE archived = ${archived} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
   );
-  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM leads WHERE archived = ?', [archived]);
+  const [[{ n }]] = await pool.query(`SELECT COUNT(*) as n FROM leads WHERE archived = ${archived}`);
   return { leads: rows, total: n, page, limit };
 };
 
@@ -179,11 +178,10 @@ const insertTestDrive = async ({ name, email, phone, vehicleId, vehicleName, pre
 const getTestDrives = async ({ page = 1, limit = 15, archived = 0 } = {}) => {
   page = parseInt(page); limit = parseInt(limit); archived = parseInt(archived);
   const offset = (page - 1) * limit;
-  const [rows]  = await pool.execute(
-    'SELECT * FROM test_drives WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [archived, parseInt(limit), parseInt(offset)]
+  const [rows]  = await pool.query(
+    `SELECT * FROM test_drives WHERE archived = ${archived} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
   );
-  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM test_drives WHERE archived = ?', [archived]);
+  const [[{ n }]] = await pool.query(`SELECT COUNT(*) as n FROM test_drives WHERE archived = ${archived}`);
   return { testDrives: rows, total: n, page, limit };
 };
 
@@ -329,11 +327,14 @@ const getInventory = async ({ type, make, model, maxPrice, page = 1, limit = 12 
   if (maxPrice) { conditions.push('price <= ?');        params.push(parseFloat(maxPrice)); }
   const where  = conditions.join(' AND ');
   const offset = (page - 1) * limit;
-  const [rows] = await pool.execute(
-    `SELECT * FROM inventory WHERE ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), parseInt(offset)]
+  const [rows] = await pool.query(
+    `SELECT * FROM inventory WHERE ${where} ORDER BY updated_at DESC LIMIT ${limit} OFFSET ${offset}`,
+    params
   );
-  const [[{ n }]] = await pool.execute(`SELECT COUNT(*) as n FROM inventory WHERE ${where}`, params);
+  const [[{ n }]] = await pool.query(
+    `SELECT COUNT(*) as n FROM inventory WHERE ${where}`,
+    params
+  );
   return {
     vehicles: rows.map(normalizeRow),
     total: n, page: parseInt(page), limit: parseInt(limit),
