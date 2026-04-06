@@ -312,6 +312,7 @@
     .badge-used { background: rgba(0,0,0,.55); color: #fff; backdrop-filter: blur(6px); }
     .badge-certified { background: rgba(39,174,96,.8); color: #fff; }
     .vehicle-card-body { padding: 20px; }
+    .vehicle-stock { font-size: .68rem; color: var(--muted); letter-spacing: .04em; margin-bottom: 2px; }
     .vehicle-year-make { font-size: .78rem; color: var(--gold); letter-spacing: .06em; text-transform: uppercase; }
     .vehicle-model { font-family: var(--ff-display); font-size: 1.6rem; font-weight: 400; line-height: 1.1; margin-bottom: 4px; }
     .vehicle-trim { font-size: .82rem; color: var(--muted); margin-bottom: 16px; }
@@ -495,6 +496,9 @@
     .modal-img { aspect-ratio: 16/9; overflow: hidden; background: var(--surface); }
     .modal-img img { width: 100%; height: 100%; object-fit: cover; }
     .modal-body { padding: 32px; }
+    .modal-stock { font-size: .72rem; color: var(--muted); margin-bottom: 2px; letter-spacing: .04em; }
+    .modal-share-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; font-size:.75rem; font-weight:500; letter-spacing:.06em; text-transform:uppercase; border:1px solid var(--border); border-radius:var(--radius); color:var(--muted); cursor:pointer; background:none; transition:all var(--trans); }
+    .modal-share-btn:hover { border-color:var(--gold); color:var(--gold); }
     .modal-meta { font-size: .78rem; color: var(--gold); letter-spacing: .06em; text-transform: uppercase; }
     .modal-title { font-family: var(--ff-display); font-size: 2.4rem; font-weight: 300; margin: 6px 0 4px; }
     .modal-trim { color: var(--muted); margin-bottom: 24px; }
@@ -1001,6 +1005,7 @@
     <button class="modal-close" id="modal-close" aria-label="Cerrar">✕</button>
     <div class="modal-img"><img id="modal-img" src="" alt="" /></div>
     <div class="modal-body">
+      <div class="modal-stock" id="modal-stock"></div>
       <div class="modal-meta" id="modal-meta"></div>
       <h2 class="modal-title" id="modal-title"></h2>
       <p class="modal-trim" id="modal-trim"></p>
@@ -1011,6 +1016,7 @@
         <div class="features-list" id="modal-features"></div>
       </div>
       <div class="modal-actions">
+        <button class="modal-share-btn" id="modal-share-btn">🔗 <span data-es="Compartir" data-en="Share">Compartir</span></button>
         <button class="btn-test-drive" id="modal-td-btn">🚗 <span data-es="Prueba de manejo" data-en="Test Drive">Prueba de manejo</span></button>
         <button class="btn-primary" id="modal-contact-btn">
           <span data-es="Preguntar sobre este vehículo" data-en="Ask about this vehicle">Preguntar sobre este vehículo</span>
@@ -1249,6 +1255,7 @@ const vehicleCardHTML = (v) => `
       ${badgeLabel(v)}
     </div>
     <div class="vehicle-card-body">
+      ${v.stockNumber ? `<div class="vehicle-stock">Stock #${escapeHTML(v.stockNumber)}</div>` : ''}
       <div class="vehicle-year-make">${escapeHTML(String(v.year))} · ${escapeHTML(v.make)}</div>
       <div class="vehicle-model">${escapeHTML(v.model)}</div>
       <div class="vehicle-trim">${escapeHTML(v.trim || '')}</div>
@@ -1452,6 +1459,7 @@ const openModal = async (id) => {
     beacon('vehicle_view', { vehicleId: v.id, vehicleName: v.year + ' ' + v.make + ' ' + v.model });
     document.getElementById('modal-img').src   = escapeHTML(v.images?.[0] || '');
     document.getElementById('modal-img').alt   = escapeHTML(`${v.year} ${v.make} ${v.model}`);
+    document.getElementById('modal-stock').textContent = v.stockNumber ? `Stock #${v.stockNumber}` : '';
     document.getElementById('modal-meta').textContent  = `${v.year} · ${escapeHTML(v.make)}`;
     document.getElementById('modal-title').textContent = escapeHTML(v.model);
     document.getElementById('modal-trim').textContent  = escapeHTML(v.trim || '');
@@ -1479,6 +1487,22 @@ const openModal = async (id) => {
       closeModal();
       beacon('contact_click', { source: 'vehicle_modal' });
     document.getElementById('contact').scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // Share button
+    const shareBtn = document.getElementById('modal-share-btn');
+    const shareUrl  = `${location.origin}/?vehicle=${encodeURIComponent(v.id)}`;
+    const shareText = `${v.year} ${v.make} ${v.model} — ${formatPrice(v.price)}`;
+    shareBtn.onclick = async () => {
+      if (navigator.share) {
+        try { await navigator.share({ title: shareText, url: shareUrl }); } catch {}
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        shareBtn.querySelector('span').textContent = lang === 'es' ? '¡Copiado!' : 'Copied!';
+        setTimeout(() => {
+          shareBtn.querySelector('span').textContent = lang === 'es' ? 'Compartir' : 'Share';
+        }, 2000);
+      }
     };
 
     modalOverlay.classList.add('open');
