@@ -240,6 +240,28 @@
       .stat-grid { grid-template-columns: repeat(2,1fr); }
       .topbar-nav { display: none; }
     }
+
+    /* ── INVENTORY PANEL ── */
+    .inv-desc     { font-size:.82rem; color:var(--muted); margin-bottom:16px; line-height:1.7; }
+    .inv-upload-row { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+    .inv-file-label { display:block; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+    .inv-file-input { font-size:.82rem; color:var(--text); }
+    .inv-check-col  { display:flex; flex-direction:column; gap:8px; padding-top:22px; }
+    .inv-check-label { display:flex; align-items:center; gap:8px; font-size:.82rem; color:var(--muted); cursor:pointer; }
+    .inv-btn-row    { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+    .inv-upload-btn { width:auto; padding:10px 24px; }
+    .inv-msg        { margin-top:14px; font-size:.85rem; display:none; }
+    .inv-status-txt { color:var(--muted); font-size:.85rem; }
+    .inv-badge      { font-size:.78rem; color:var(--muted); }
+    .inv-card-mb    { margin-bottom:20px; }
+    .td-badge-hidden { display:none; }
+    /* test drive card helpers */
+    .td-meta-mt     { margin-top:8px; }
+    .td-msg-mt      { margin-top:10px; }
+    .td-actions-mt  { margin-top:12px; }
+    .td-confirmed   { color:var(--green); font-size:.75rem; margin-left:8px; }
+    .td-confirm-btn { color:var(--green); border-color:var(--green); }
+    .lang-nodata { height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.82rem; }
   </style>
 </head>
 <body>
@@ -267,7 +289,7 @@
       <button data-panel="dashboard" class="active">Dashboard</button>
       <button data-panel="leads">Leads</button>
       <button data-panel="inventory">Inventario</button>
-      <button data-panel="testdrives">Pruebas de Manejo <span id="td-badge" class="topbar-badge" style="display:none">0</span></button>
+      <button data-panel="testdrives">Pruebas de Manejo <span id="td-badge" class="topbar-badge td-badge-hidden">0</span></button>
     </nav>
     <div class="topbar-right">
       <button class="logout-btn" id="logout-btn">Salir</button>
@@ -347,39 +369,39 @@
     <div class="panel" id="panel-inventory">
       <div class="section-header">
         <span class="section-heading">Inventario CSV</span>
-        <span id="inv-total-badge" style="font-size:.78rem;color:var(--muted)"></span>
+        <span id="inv-total-badge" class="inv-badge"></span>
       </div>
 
-      <div class="table-card" style="margin-bottom:20px">
+      <div class="table-card inv-card-mb">
         <div class="table-title">Subir inventario desde CSV</div>
-        <p style="font-size:.82rem;color:var(--muted);margin-bottom:16px;line-height:1.7">
+        <p class="inv-desc">
           Exporta el inventario desde vAuto como CSV y súbelo aquí. El sistema detecta automáticamente
           las columnas: VIN, Year, Make, Model, Trim, Price, Mileage, Color, Photos, etc.
         </p>
-        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <div class="inv-upload-row">
           <div>
-            <label style="display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Archivo CSV</label>
-            <input type="file" id="inv-file-input" accept=".csv" style="font-size:.82rem;color:var(--text)" />
+            <label class="inv-file-label">Archivo CSV</label>
+            <input type="file" id="inv-file-input" accept=".csv" class="inv-file-input" />
           </div>
-          <div style="display:flex;flex-direction:column;gap:8px;padding-top:22px">
-            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted);cursor:pointer">
+          <div class="inv-check-col">
+            <label class="inv-check-label">
               <input type="checkbox" id="inv-clear-first" checked />
               Reemplazar inventario existente
             </label>
           </div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-          <button class="form-submit" id="inv-upload-btn" style="width:auto;padding:10px 24px">
+        <div class="inv-btn-row">
+          <button class="form-submit inv-upload-btn" id="inv-upload-btn">
             Subir CSV
           </button>
           <button class="lead-btn danger" id="inv-clear-btn">Limpiar todo el inventario</button>
         </div>
-        <div id="inv-msg" style="margin-top:14px;font-size:.85rem;display:none"></div>
+        <div id="inv-msg" class="inv-msg"></div>
       </div>
 
       <div class="table-card">
         <div class="table-title">Estado del inventario</div>
-        <div id="inv-status" style="color:var(--muted);font-size:.85rem">Cargando...</div>
+        <div id="inv-status" class="inv-status-txt">Cargando...</div>
       </div>
     </div>
 
@@ -510,7 +532,7 @@ document.querySelectorAll('[data-panel]').forEach(btn => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`panel-${btn.dataset.panel}`).classList.add('active');
     if (btn.dataset.panel === 'leads') loadLeads();
-    if (btn.dataset.panel === 'testdrives') loadTestDrives();
+    if (btn.dataset.panel === 'testdrives') { if (typeof loadTestDrives === 'function') loadTestDrives(); }
   });
 });
 
@@ -683,7 +705,7 @@ const renderTopVehicles = (vehicles) => {
       <td class="td-views">${esc(String(v.views))}</td>
       <td>
         <div class="bar-cell">
-          <div class="bar-track"><div class="bar-fill" style="--bar-w:${Math.round((v.views/max)*100)}%"></div></div>
+          <div class="bar-track"><div class="bar-fill" data-w="${Math.round((v.views/max)*100)}"></div></div>
         </div>
       </td>
     </tr>
@@ -693,7 +715,7 @@ const renderTopVehicles = (vehicles) => {
 const renderLangChart = (breakdown) => {
   const wrap = document.getElementById('lang-chart').parentElement;
   if (!breakdown || !breakdown.length) {
-    wrap.innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.82rem">Sin datos aún</div>';
+    wrap.innerHTML = '<div class="lang-nodata">Sin datos aún</div>';
     return;
   }
   const colors = { es: '#c8a96e', en: '#60a5fa' };
@@ -716,7 +738,7 @@ const renderFunnel = (s) => {
         <span class="funnel-val">${esc(String(st.value))}</span>
       </div>
       <div class="funnel-track">
-        <div class="funnel-bar" style="--fw:${Math.round((st.value/max)*100)}%;--fc:${st.color}"></div>
+        <div class="funnel-bar" data-w="${Math.round((st.value/max)*100)}" data-c="${st.color}"></div>
       </div>
     </div>
   `).join('');
@@ -822,7 +844,7 @@ setInterval(() => { if (token) pollUnread(); }, 90_000);
 ═══════════════════════════════════════════════════════ */
 if (token) {
   showApp();
-  pollTdUnread();
+  setTimeout(() => pollTdUnread(), 0);
 } else {
   showLogin();
 }
@@ -860,7 +882,7 @@ const renderTestDrives = (data) => {
           <div class="lead-name">
             ${isUnread ? '<span class="unread-dot"></span>' : ''}
             ${esc(t.name)}
-            ${t.confirmed ? '<span style="color:var(--green);font-size:.75rem;margin-left:8px">✓ Confirmada</span>' : ''}
+            ${t.confirmed ? '<span class="td-confirmed">✓ Confirmada</span>' : ''}
             <span class="lang-pill">${esc(t.language || 'es')}</span>
           </div>
           <div class="lead-date">${esc(date)}</div>
@@ -870,14 +892,14 @@ const renderTestDrives = (data) => {
           ${t.phone ? `<span>📞 <a href="tel:${esc(t.phone)}">${esc(t.phone)}</a></span>` : ''}
         </div>
         ${t.vehicle_name ? `<div class="lead-vehicle">🚗 ${esc(t.vehicle_name)}</div>` : ''}
-        <div class="lead-meta" style="margin-top:8px">
+        <div class="lead-meta td-meta-mt">
           <span>📅 ${esc(t.preferred_date)}</span>
           ${t.preferred_time ? `<span>🕐 ${esc(t.preferred_time)}</span>` : ''}
         </div>
-        ${t.message ? `<div class="lead-message" style="margin-top:10px">${esc(t.message)}</div>` : ''}
-        <div class="lead-actions" style="margin-top:12px">
+        ${t.message ? `<div class="lead-message td-msg-mt">${esc(t.message)}</div>` : ''}
+        <div class="lead-actions td-actions-mt">
           ${isUnread ? `<button class="lead-btn" onclick="markTdRead(${esc(String(t.id))})">✓ Marcar leída</button>` : ''}
-          ${!t.confirmed ? `<button class="lead-btn" onclick="confirmTd(${esc(String(t.id))})" style="color:var(--green);border-color:var(--green)">✓ Confirmar</button>` : ''}
+          ${!t.confirmed ? `<button class="lead-btn td-confirm-btn" onclick="confirmTd(${esc(String(t.id))})">✓ Confirmar</button>` : ''}
           ${!t.archived ? `<button class="lead-btn danger" onclick="archiveTd(${esc(String(t.id))})">Archivar</button>` : ''}
           <a href="mailto:${esc(t.email)}?subject=Prueba de manejo confirmada — ${esc(t.vehicle_name || '')}" class="lead-btn">Responder</a>
           <a href="tel:${esc(t.phone || '')}" class="lead-btn">Llamar</a>
@@ -981,7 +1003,7 @@ document.getElementById('inv-clear-btn').addEventListener('click', async () => {
 // Load inv status when tab is clicked
 document.querySelectorAll('[data-panel]').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.panel === 'inventory') loadInvStatus();
+    if (btn.dataset.panel === 'inventory') { if (typeof loadInvStatus === 'function') loadInvStatus(); }
   });
 });
 
