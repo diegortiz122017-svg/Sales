@@ -608,59 +608,62 @@
     .btn-test-drive:hover { background: #264d7a; transform: translateY(-1px); }
     @media(max-width:480px) { .td-time-grid { grid-template-columns: 1fr; } }
 
-    /* ── ADVANCED FILTER PANEL ──────────────────────── */
-    .inv-filter-panel {
+    /* ── ADVANCED FILTER DRAWER ─────────────────────── */
+    .inv-more-btn {
+      padding: 9px 22px; font-size: .78rem; letter-spacing: .08em;
+      text-transform: uppercase; border: 1px solid var(--border);
+      border-radius: 20px; color: var(--muted); cursor: pointer;
+      background: none; transition: var(--trans); position: relative;
+    }
+    .inv-more-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .inv-more-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(26,58,92,.06); }
+    .inv-more-badge {
+      position: absolute; top: -5px; right: -5px;
+      background: var(--gold); color: #fff;
+      font-size: .6rem; font-weight: 700; border-radius: 50%;
+      width: 16px; height: 16px; display: none;
+      align-items: center; justify-content: center;
+    }
+    .inv-more-badge.visible { display: flex; }
+    .inv-drawer {
+      max-height: 0; overflow: hidden;
+      transition: max-height .35s cubic-bezier(.4,0,.2,1);
+    }
+    .inv-drawer.open { max-height: 400px; }
+    .inv-drawer-inner {
       background: #fff; border: 1px solid var(--border);
       border-radius: var(--radius-lg); padding: 20px 24px;
-      margin-bottom: 28px; box-shadow: 0 2px 8px rgba(0,0,0,.04);
+      margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.04);
     }
-    .inv-filter-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px;
-    }
-    .inv-filter-title {
-      font-size: .72rem; font-weight: 600; letter-spacing: .1em;
-      text-transform: uppercase; color: var(--muted);
-    }
-    .inv-filter-reset {
-      font-size: .75rem; color: var(--gold); cursor: pointer;
-      background: none; border: none; padding: 0; font-weight: 500;
-      opacity: 0; transition: opacity var(--trans); pointer-events: none;
-    }
-    .inv-filter-reset.visible { opacity: 1; pointer-events: all; }
-    .inv-filter-grid {
+    .inv-drawer-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
     }
-    .inv-filter-group label {
-      display: block; font-size: .7rem; font-weight: 600;
+    .inv-drawer-group label {
+      display: block; font-size: .68rem; font-weight: 600;
       letter-spacing: .08em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 6px;
+      color: var(--muted); margin-bottom: 5px;
     }
-    .inv-filter-group select {
-      width: 100%; padding: 8px 12px; font-size: .85rem;
+    .inv-drawer-group select {
+      width: 100%; padding: 8px 28px 8px 10px; font-size: .84rem;
       border: 1px solid var(--border); border-radius: var(--radius);
       background: var(--surface); color: var(--text);
       cursor: pointer; transition: border-color var(--trans);
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7585' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 10px center;
-      padding-right: 28px;
+      background-repeat: no-repeat; background-position: right 8px center;
     }
-    .inv-filter-group select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(26,58,92,.08); }
-    .inv-search-input { width:100%; padding:8px 12px; font-size:.85rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); transition:border-color var(--trans); }
-    .inv-search-input:focus { border-color:var(--gold); outline:none; box-shadow:0 0 0 3px rgba(26,58,92,.08); }
-    .inv-filter-count {
-      font-size: .78rem; color: var(--muted); margin-bottom: 20px;
-      text-align: center;
+    .inv-drawer-group select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 3px rgba(26,58,92,.08); }
+    .inv-drawer-footer { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .inv-reset-btn {
+      font-size: .75rem; color: var(--gold); cursor: pointer;
+      background: none; border: none; padding: 0; font-weight: 500;
     }
+    .inv-filter-count { font-size: .78rem; color: var(--muted); text-align: center; margin-bottom: 20px; }
     .inv-filter-count strong { color: var(--gold); }
-    @media(max-width:600px) {
-      .inv-filter-grid { grid-template-columns: 1fr 1fr; }
-      .inv-filter-panel { padding: 16px; }
-    }
-    @media(max-width:380px) { .inv-filter-grid { grid-template-columns: 1fr; } }
+    @media(max-width:600px) { .inv-drawer-grid { grid-template-columns: 1fr 1fr; } .inv-drawer-inner { padding: 16px; } }
+    @media(max-width:380px) { .inv-drawer-grid { grid-template-columns: 1fr; } }
 
     /* ── NO-INLINE-STYLE HELPERS ─────────────────────────── */
     .about-photo-overlay { position:absolute; inset:0; background:var(--surface2); }
@@ -731,85 +734,79 @@
       </p>
     </div>
 
-    <div class="inv-filter-panel reveal">
-      <div class="inv-filter-header">
-        <span class="inv-filter-title" data-es="Filtros" data-en="Filters">Filtros</span>
-        <button class="inv-filter-reset" id="inv-reset-btn" data-es="Limpiar filtros" data-en="Clear filters">Limpiar filtros</button>
-      </div>
-      <div class="inv-filter-grid">
-        <div class="inv-filter-group">
-          <label data-es="Búsqueda" data-en="Search">Búsqueda</label>
-          <input class="form-control inv-search-input" type="text" id="inv-search-input" placeholder="Modelo, marca..." autocomplete="off" maxlength="80" />
+    <div class="inv-filters reveal">
+      <button class="filter-btn active" data-filter="">
+        <span data-es="Todos" data-en="All">Todos</span>
+      </button>
+      <button class="filter-btn" data-filter="new">
+        <span data-es="Nuevos" data-en="New">Nuevos</span>
+      </button>
+      <button class="filter-btn" data-filter="used">
+        <span data-es="Usados" data-en="Used">Usados</span>
+      </button>
+      <button class="filter-btn" data-filter="certified">
+        <span data-es="Certificados" data-en="Certified">Certificados</span>
+      </button>
+      <button class="inv-more-btn" id="inv-more-btn">
+        <span data-es="Más filtros" data-en="More filters">Más filtros</span>
+        <span class="inv-more-badge" id="inv-more-badge">0</span>
+      </button>
+    </div>
+
+    <div class="inv-drawer" id="inv-drawer">
+      <div class="inv-drawer-inner">
+        <div class="inv-drawer-grid">
+          <div class="inv-drawer-group">
+            <label data-es="Marca" data-en="Brand">Marca</label>
+            <select id="filter-make"><option value="">Todas</option></select>
+          </div>
+          <div class="inv-drawer-group">
+            <label data-es="Precio máx." data-en="Max Price">Precio máx.</label>
+            <select id="filter-price">
+              <option value="">Sin límite</option>
+              <option value="15000">$15,000</option>
+              <option value="20000">$20,000</option>
+              <option value="25000">$25,000</option>
+              <option value="30000">$30,000</option>
+              <option value="40000">$40,000</option>
+              <option value="50000">$50,000</option>
+            </select>
+          </div>
+          <div class="inv-drawer-group">
+            <label data-es="Año mín." data-en="Min Year">Año mín.</label>
+            <select id="filter-year"><option value="">Todos</option></select>
+          </div>
+          <div class="inv-drawer-group">
+            <label data-es="Millaje máx." data-en="Max Mileage">Millaje máx.</label>
+            <select id="filter-mileage">
+              <option value="">Sin límite</option>
+              <option value="15000">15,000 mi</option>
+              <option value="30000">30,000 mi</option>
+              <option value="60000">60,000 mi</option>
+              <option value="100000">100,000 mi</option>
+            </select>
+          </div>
+          <div class="inv-drawer-group">
+            <label data-es="Tracción" data-en="Drivetrain">Tracción</label>
+            <select id="filter-drivetrain"><option value="">Todas</option></select>
+          </div>
+          <div class="inv-drawer-group">
+            <label data-es="Carrocería" data-en="Body Style">Carrocería</label>
+            <select id="filter-body"><option value="">Todas</option></select>
+          </div>
         </div>
-        <div class="inv-filter-group">
-          <label data-es="Condición" data-en="Condition">Condición</label>
-          <select id="filter-type">
-            <option value="" data-es="Todos" data-en="All">Todos</option>
-            <option value="new" data-es="Nuevo" data-en="New">Nuevo</option>
-            <option value="used" data-es="Usado" data-en="Used">Usado</option>
-            <option value="certified" data-es="Certificado" data-en="Certified">Certificado</option>
-          </select>
-        </div>
-        <div class="inv-filter-group">
-          <label data-es="Marca" data-en="Brand">Marca</label>
-          <select id="filter-make">
-            <option value="" data-es="Todas" data-en="All">Todas</option>
-          </select>
-        </div>
-        <div class="inv-filter-group">
-          <label data-es="Precio máx." data-en="Max Price">Precio máx.</label>
-          <select id="filter-price">
-            <option value="">Sin límite</option>
-            <option value="15000">$15,000</option>
-            <option value="20000">$20,000</option>
-            <option value="25000">$25,000</option>
-            <option value="30000">$30,000</option>
-            <option value="40000">$40,000</option>
-            <option value="50000">$50,000</option>
-          </select>
-        </div>
-        <div class="inv-filter-group">
-          <label data-es="Año mín." data-en="Min Year">Año mín.</label>
-          <select id="filter-year">
-            <option value="">Todos</option>
-          </select>
-        </div>
-        <div class="inv-filter-group">
-          <label data-es="Millaje máx." data-en="Max Mileage">Millaje máx.</label>
-          <select id="filter-mileage">
-            <option value="">Sin límite</option>
-            <option value="15000">15,000 mi</option>
-            <option value="30000">30,000 mi</option>
-            <option value="60000">60,000 mi</option>
-            <option value="100000">100,000 mi</option>
-          </select>
-        </div>
-        <div class="inv-filter-group">
-          <label data-es="Tracción" data-en="Drivetrain">Tracción</label>
-          <select id="filter-drivetrain">
-            <option value="">Todas</option>
-            <option value="AWD">AWD</option>
-            <option value="FWD">FWD</option>
-            <option value="RWD">RWD</option>
-            <option value="4WD">4WD</option>
-          </select>
-        </div>
-        <div class="inv-filter-group">
-          <label data-es="Carrocería" data-en="Body Style">Carrocería</label>
-          <select id="filter-body">
-            <option value="">Todas</option>
-            <option value="SUV">SUV</option>
-            <option value="Sedan">Sedan</option>
-            <option value="Truck">Truck / Pickup</option>
-            <option value="Van">Van / Minivan</option>
-            <option value="Coupe">Coupe</option>
-            <option value="Hatchback">Hatchback</option>
-          </select>
+        <div class="inv-drawer-footer">
+          <button class="inv-reset-btn" id="inv-reset-btn" data-es="Limpiar filtros" data-en="Clear filters">Limpiar filtros</button>
         </div>
       </div>
     </div>
 
-    <div class="inv-filter-count reveal" id="inv-count"></div>
+    <div class="inv-search reveal">
+      <input type="text" id="inv-search-input" placeholder="Buscar por modelo..." autocomplete="off" maxlength="80" />
+      <button id="inv-search-btn" data-es="Buscar" data-en="Search">Buscar</button>
+    </div>
+
+    <div class="inv-filter-count" id="inv-count"></div>
 
     <div id="inv-grid">
       <div class="inv-loading">
@@ -1327,39 +1324,47 @@ const renderPagination = (total, page, limit) => {
 };
 
 
-/* ── ADVANCED FILTERS ────────────────────────────── */
-const filterChanged = () => { invState.page = 1; loadInventory(); updateResetBtn(); };
+/* ── FILTERS ─────────────────────────────────────── */
+const filterChanged = () => { invState.page = 1; loadInventory(); updateMoreBadge(); };
 
-const updateResetBtn = () => {
-  const active = invState.type || invState.make || invState.search ||
-    invState.maxPrice || invState.minYear || invState.maxMileage ||
-    invState.drivetrain || invState.bodyStyle;
-  document.getElementById('inv-reset-btn').classList.toggle('visible', !!active);
+const updateMoreBadge = () => {
+  const count = [invState.make, invState.maxPrice, invState.minYear,
+    invState.maxMileage, invState.drivetrain, invState.bodyStyle].filter(Boolean).length;
+  const badge = document.getElementById('inv-more-badge');
+  badge.textContent = count;
+  badge.classList.toggle('visible', count > 0);
+  document.getElementById('inv-more-btn').classList.toggle('active', count > 0);
 };
 
-document.getElementById('inv-reset-btn').addEventListener('click', () => {
-  invState = { ...invState, type:'', make:'', search:'', maxPrice:'', minYear:'', maxMileage:'', drivetrain:'', bodyStyle:'', page:1 };
-  document.getElementById('inv-search-input').value  = '';
-  document.getElementById('filter-type').value       = '';
-  document.getElementById('filter-make').value       = '';
-  document.getElementById('filter-price').value      = '';
-  document.getElementById('filter-year').value       = '';
-  document.getElementById('filter-mileage').value    = '';
-  document.getElementById('filter-drivetrain').value = '';
-  document.getElementById('filter-body').value       = '';
-  updateResetBtn();
-  loadInventory();
+// Type pill buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    invState.type = btn.dataset.filter || '';
+    filterChanged();
+  });
 });
 
-document.getElementById('inv-search-input').addEventListener('input', () => {
-  invState.search = document.getElementById('inv-search-input').value.trim().slice(0, 80);
-  clearTimeout(window._searchTimer);
-  window._searchTimer = setTimeout(() => filterChanged(), 400);
+// More filters drawer toggle
+document.getElementById('inv-more-btn').addEventListener('click', () => {
+  const drawer = document.getElementById('inv-drawer');
+  drawer.classList.toggle('open');
+  const label = document.getElementById('inv-more-btn').querySelector('span[data-es]');
+  if (drawer.classList.contains('open')) {
+    label.setAttribute('data-es', 'Menos filtros');
+    label.setAttribute('data-en', 'Less filters');
+    label.textContent = lang === 'es' ? 'Menos filtros' : 'Less filters';
+  } else {
+    label.setAttribute('data-es', 'Más filtros');
+    label.setAttribute('data-en', 'More filters');
+    label.textContent = lang === 'es' ? 'Más filtros' : 'More filters';
+  }
 });
 
-['filter-type','filter-make','filter-price','filter-year','filter-mileage','filter-drivetrain','filter-body'].forEach(id => {
+// Drawer selects
+['filter-make','filter-price','filter-year','filter-mileage','filter-drivetrain','filter-body'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
-    invState.type       = document.getElementById('filter-type').value;
     invState.make       = document.getElementById('filter-make').value.toUpperCase();
     invState.maxPrice   = document.getElementById('filter-price').value;
     invState.minYear    = document.getElementById('filter-year').value;
@@ -1370,35 +1375,63 @@ document.getElementById('inv-search-input').addEventListener('input', () => {
   });
 });
 
+// Reset
+document.getElementById('inv-reset-btn').addEventListener('click', () => {
+  invState = { ...invState, type:'', make:'', search:'', maxPrice:'', minYear:'', maxMileage:'', drivetrain:'', bodyStyle:'', page:1 };
+  document.getElementById('inv-search-input').value  = '';
+  document.getElementById('filter-make').value       = '';
+  document.getElementById('filter-price').value      = '';
+  document.getElementById('filter-year').value       = '';
+  document.getElementById('filter-mileage').value    = '';
+  document.getElementById('filter-drivetrain').value = '';
+  document.getElementById('filter-body').value       = '';
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.filter-btn[data-filter=""]').classList.add('active');
+  updateMoreBadge();
+  loadInventory();
+});
+
+// Search
+const searchInput = document.getElementById('inv-search-input');
+searchInput.addEventListener('input', () => {
+  invState.search = searchInput.value.trim().slice(0, 80);
+  clearTimeout(window._searchTimer);
+  window._searchTimer = setTimeout(() => filterChanged(), 400);
+});
+document.getElementById('inv-search-btn').addEventListener('click', () => {
+  invState.search = searchInput.value.trim().slice(0, 80);
+  filterChanged();
+});
+searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') filterChanged(); });
+
 // Load all unique filter values from DB in one request
 const loadFacets = async () => {
   try {
     const facets = await fetch('/api/inventory/facets').then(r => r.json());
-    const makeSelect = document.getElementById('filter-make');
-    const yearSelect = document.getElementById('filter-year');
-    const driveSelect = document.getElementById('filter-drivetrain');
-    const bodySelect = document.getElementById('filter-body');
-
     if (facets.makes?.length) {
-      makeSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+      document.getElementById('filter-make').innerHTML =
+        `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
         facets.makes.map(m => `<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('');
     }
     if (facets.years?.length) {
-      yearSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todos' : 'All'}</option>` +
+      document.getElementById('filter-year').innerHTML =
+        `<option value="">${lang === 'es' ? 'Todos' : 'All'}</option>` +
         facets.years.map(y => `<option value="${y}">${y}</option>`).join('');
     }
     if (facets.drivetrains?.length) {
-      driveSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+      document.getElementById('filter-drivetrain').innerHTML =
+        `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
         facets.drivetrains.map(d => `<option value="${escapeHTML(d)}">${escapeHTML(d)}</option>`).join('');
     }
     if (facets.bodies?.length) {
-      bodySelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+      document.getElementById('filter-body').innerHTML =
+        `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
         facets.bodies.map(b => `<option value="${escapeHTML(b)}">${escapeHTML(b)}</option>`).join('');
     }
   } catch(e) { /* keep defaults */ }
 };
 
-// No-op stubs — facets now loaded separately
+// No-op stubs — facets loaded separately
 const buildBrandFilters = () => {};
 const buildYearFilter   = () => {};
 
