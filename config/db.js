@@ -325,14 +325,18 @@ const upsertInventory = async (vehicles) => {
   return count;
 };
 
-const getInventory = async ({ type, make, model, maxPrice, page = 1, limit = 12 } = {}) => {
+const getInventory = async ({ type, make, model, maxPrice, minYear, maxMileage, drivetrain, bodyStyle, page = 1, limit = 12 } = {}) => {
   page = parseInt(page); limit = parseInt(limit);
   const conditions = ['1=1'];
   const params     = [];
-  if (type)     { conditions.push('type = ?');          params.push(type); }
-  if (make)     { conditions.push('make LIKE ?');       params.push('%' + make + '%'); }
-  if (model)    { conditions.push('model LIKE ?');      params.push('%' + model + '%'); }
-  if (maxPrice) { conditions.push('price <= ?');        params.push(parseFloat(maxPrice)); }
+  if (type)       { conditions.push('type = ?');              params.push(type); }
+  if (make)       { conditions.push('make LIKE ?');           params.push('%' + make + '%'); }
+  if (model)      { conditions.push('model LIKE ?');          params.push('%' + model + '%'); }
+  if (maxPrice)   { conditions.push('price <= ?');            params.push(parseFloat(maxPrice)); }
+  if (minYear)    { conditions.push('year >= ?');             params.push(parseInt(minYear)); }
+  if (maxMileage) { conditions.push('mileage <= ?');          params.push(parseInt(maxMileage)); }
+  if (drivetrain) { conditions.push('drivetrain LIKE ?');     params.push('%' + drivetrain + '%'); }
+  if (bodyStyle)  { conditions.push('body_style LIKE ?');     params.push('%' + bodyStyle + '%'); }
   const where  = conditions.join(' AND ');
   const offset = (page - 1) * limit;
   const [rows] = await pool.query(
