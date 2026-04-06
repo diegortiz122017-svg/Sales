@@ -56,8 +56,8 @@ router.get('/inventory', [
   if (err) return;
 
   try {
-    const { type, make, model, maxPrice, page = 1, limit = 12 } = req.query;
-    const data = await fetchFromVAuto({ type, make, model, maxPrice, page, limit });
+    const { type, make, model, maxPrice, minYear, maxMileage, drivetrain, bodyStyle, page = 1, limit = 12 } = req.query;
+    const data = await fetchFromVAuto({ type, make, model, maxPrice, minYear, maxMileage, drivetrain, bodyStyle, page, limit });
     res.json(data);
   } catch (e) {
     console.error('[Inventory] vAuto fetch error:', e.message);
@@ -188,13 +188,7 @@ router.post('/contact', contactLimiter, [
 // Falls back to static reviews if scraping fails or returns nothing.
 const { fetchReviews } = require('../config/dealerrater');
 
-const STATIC_FALLBACK = [
-  { id: 'f1', author: 'María González',    rating: 5, date: '2024-11-12', text: 'Diego fue increíble. Habló conmigo en español, me explicó todo con paciencia y conseguí un Rogue a un precio justo. ¡100% recomendado!', vehicle: 'Nissan Rogue 2024', source: 'fallback' },
-  { id: 'f2', author: 'Carlos & Ana Reyes',rating: 5, date: '2024-10-05', text: 'Compramos nuestro primer carro aquí con Diego. Fue muy honesto, sin presión y nos consiguió el mejor financiamiento posible.',           vehicle: 'Nissan Altima 2023', source: 'fallback' },
-  { id: 'f3', author: 'Roberto Fuentes',   rating: 5, date: '2024-09-18', text: 'Diego me ayudó a encontrar la Frontier perfecta para mi trabajo. Conoce muy bien los vehículos.',                                           vehicle: 'Nissan Frontier 2024', source: 'fallback' },
-  { id: 'f4', author: 'Lucía Mendoza',     rating: 5, date: '2024-08-30', text: 'Excelente servicio. Diego se tomó el tiempo de entender mis necesidades y mi presupuesto.',                                                   vehicle: 'Nissan Sentra 2024', source: 'fallback' },
-  { id: 'f5', author: 'Pedro & Sofia Vargas', rating: 5, date: '2024-07-14', text: 'La mejor experiencia comprando un carro. Diego habla español perfectamente y nos hizo sentir muy cómodos.',                               vehicle: 'Nissan Pathfinder 2024', source: 'fallback' },
-];
+const STATIC_FALLBACK = require('../config/reviews-static.json');
 
 router.get('/reviews', async (req, res) => {
   try {
@@ -205,7 +199,8 @@ router.get('/reviews', async (req, res) => {
   } catch (e) {
     console.warn('[Reviews] DealerRater fetch failed, using fallback:', e.message);
   }
-  res.json(STATIC_FALLBACK);
+  const shuffled = [...STATIC_FALLBACK].sort(() => Math.random() - 0.5).slice(0, 6);
+  res.json(shuffled.map((r, i) => ({ ...r, id: `sf-${i}` })));
 });
 
 // ─── POST /api/event ──────────────────────────────────────
