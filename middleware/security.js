@@ -7,7 +7,7 @@ const xss       = require('xss');
 // Generates a fresh nonce per request, attaches to res.locals
 // so route handlers and templates can read it.
 const nonceMiddleware = (req, res, next) => {
-  res.locals.nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.nonce = crypto.randomBytes(16).toString('base64url'); // base64url avoids +/= chars that can trip up CSP header parsing
   next();
 };
 
