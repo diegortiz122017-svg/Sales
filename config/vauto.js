@@ -103,13 +103,13 @@ const normalizeVehicle = (v) => ({
 });
 
 // ─── Fetch inventory — MySQL first, mock fallback ─────────
-const fetchFromVAuto = async ({ type, make, model, maxPrice, page = 1, limit = 12 } = {}) => {
+const fetchFromVAuto = async ({ type, make, model, maxPrice, minYear, maxMileage, drivetrain, bodyStyle, page = 1, limit = 12 } = {}) => {
   // Try MySQL inventory first
   try {
     const db = require('./db');
     const count = await db.getInventoryCount();
     if (count > 0) {
-      return await db.getInventory({ type, make, model, maxPrice, page, limit });
+      return await db.getInventory({ type, make, model, maxPrice, minYear, maxMileage, drivetrain, bodyStyle, page, limit });
     }
   } catch (e) { console.warn('[vauto] DB check failed:', e.message); }
 
