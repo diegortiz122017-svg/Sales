@@ -65,11 +65,19 @@ const serveWithNonce = (filePath) => (req, res) => {
 };
 
 const INDEX = path.join(__dirname, 'public', 'index.html');
-const ADMIN = path.join(__dirname, 'public', 'admin.html');
+const ADMIN = path.join(__dirname, 'private', 'admin.html'); // outside public/ so static never touches it
 
 // HTML routes FIRST — before static middleware so nonce injection always runs
-app.get('/admin', serveWithNonce(ADMIN));
-app.get('/',      serveWithNonce(INDEX));
+// No-cache on admin so browser never serves a stale version with wrong nonce
+app.get('/admin', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  serveWithNonce(ADMIN)(req, res);
+});
+app.get('/', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  serveWithNonce(INDEX)(req, res);
+});
 
 // Static assets — index:false prevents Express from auto-serving index.html
 app.use(express.static(path.join(__dirname, 'public'), {
