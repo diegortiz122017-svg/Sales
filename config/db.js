@@ -331,7 +331,7 @@ const getInventory = async ({ type, make, model, maxPrice, minYear, maxMileage, 
   const params     = [];
   if (type)       { conditions.push('type = ?');              params.push(type); }
   if (make)       { conditions.push('make LIKE ?');           params.push('%' + make + '%'); }
-  if (model)      { conditions.push('model LIKE ?');          params.push('%' + model + '%'); }
+  if (model)      { conditions.push('(model LIKE ? OR make LIKE ? OR trim LIKE ?)'); params.push('%' + model + '%', '%' + model + '%', '%' + model + '%'); }
   if (maxPrice)   { conditions.push('price <= ?');            params.push(parseFloat(maxPrice)); }
   if (minYear)    { conditions.push('year >= ?');             params.push(parseInt(minYear)); }
   if (maxMileage) { conditions.push('mileage <= ?');          params.push(parseInt(maxMileage)); }
