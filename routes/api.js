@@ -65,6 +65,22 @@ router.get('/inventory', [
   }
 });
 
+
+// ── GET /api/inventory/facets ─────────────────────────────
+router.get('/inventory/facets', async (req, res) => {
+  try {
+    const db = require('../config/db');
+    const count = await db.getInventoryCount();
+    if (count > 0) {
+      const facets = await db.getInventoryFacets();
+      return res.json(facets);
+    }
+    res.json({ makes: [], years: [], drivetrains: [], bodies: [] });
+  } catch (e) {
+    res.json({ makes: [], years: [], drivetrains: [], bodies: [] });
+  }
+});
+
 // ─── GET /api/inventory/:id ───────────────────────────────
 router.get('/inventory/:id', [
   param('id').isLength({ min: 1, max: 100 }).matches(/^[a-zA-Z0-9\-_]+$/),
