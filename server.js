@@ -59,8 +59,12 @@ const serveWithNonce = (filePath) => (req, res) => {
       console.error(`[serveWithNonce] Cannot read ${filePath}:`, err.message);
       return res.status(500).send('Server error');
     }
+    const nonce = res.locals.nonce;
+    const injected = html.replace(/NONCE_PLACEHOLDER/g, nonce);
+    const count = (injected.match(new RegExp(nonce, 'g')) || []).length;
+    console.log(`[serveWithNonce] ${path.basename(filePath)} nonce=${nonce} replacements=${count}`);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html.replace(/NONCE_PLACEHOLDER/g, res.locals.nonce));
+    res.send(injected);
   });
 };
 
