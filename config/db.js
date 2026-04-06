@@ -135,6 +135,14 @@ const createTables = async () => {
 
 // ── Lead operations ───────────────────────────────────
 const insertLead = async ({ name, email, phone, message, vehicleId, language, ipHash, userAgent }) => {
+  // Duplicate check — same email + vehicle within 10 minutes
+  const [[{ n }]] = await pool.execute(
+    `SELECT COUNT(*) as n FROM leads WHERE email = ? AND (vehicle_id = ? OR (vehicle_id IS NULL AND ? IS NULL))
+     AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)`,
+    [email, vehicleId || null, vehicleId || null]
+  );
+  if (n > 0) { console.log('[DB] Duplicate lead skipped:', email); return; }
+
   await pool.execute(
     `INSERT INTO leads (name, email, phone, message, vehicle_id, language, ip_hash, user_agent)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
