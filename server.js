@@ -20,7 +20,8 @@ for (const mod of required) {
 
 const { nonceMiddleware, buildHelmet, generalLimiter, sanitizeBody } = require('./middleware/security');
 const apiRoutes   = require('./routes/api');
-const adminRoutes = require('./routes/admin');
+const adminRoutes    = require('./routes/admin');
+const inventoryRoutes = require('./routes/inventory');
 const db          = require('./config/db');
 
 const app  = express();
@@ -108,7 +109,6 @@ console.log('Node:', process.version, '| CWD:', process.cwd());
 console.log('__dirname:', __dirname);
 
 const { warmCache } = require('./config/dealerrater');
-const inventoryRoutes = require('./routes/inventory');
 
 db.init()
   .then(() => {
