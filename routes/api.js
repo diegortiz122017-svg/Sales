@@ -132,7 +132,7 @@ router.post('/contact', contactLimiter, [
 
   // Always save lead to DB first (email is best-effort)
   try {
-    db.insertLead({
+    await db.insertLead({
       name:      sanitize(name),
       email:     email,
       phone:     phone ? sanitize(phone) : null,
@@ -215,7 +215,7 @@ router.post('/event', [
   body('event').isIn([...ALLOWED_EVENTS]),
   body('sessionId').optional().isLength({ max: 64 }).matches(/^[a-zA-Z0-9\-_]+$/),
   body('payload').optional().isObject(),
-], (req, res) => {
+], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(204).end();
   try {
@@ -223,9 +223,83 @@ router.post('/event', [
     const safePayload = payload ? Object.fromEntries(
       Object.entries(payload).map(([k, v]) => [k, typeof v === 'string' ? sanitize(v).slice(0, 200) : v])
     ) : null;
-    db.logEvent({ event, payload: safePayload, sessionId, ipHash: hashIp(req.ip) });
+    await db.logEvent({ event, payload: safePayload, sessionId, ipHash: hashIp(req.ip) });
   } catch (e) { /* silent */ }
   res.status(204).end();
 });
 
 module.exports = router;
+
+// ─── POST /api/test-drive ─────────────────────────────
+const { insertTestDrive } = require('../config/db');
+
+router.post('/test-drive', [
+  body('name').trim().notEmpty().isLength({ min: 2, max: 100 }),
+  body('email').trim().isEmail().normalizeEmail(),
+  body('phone').trim().notEmpty().matches(/^[\d\s\-\+\(\)]+$/).isLength({ max: 20 }),
+  body('preferredDate').trim().notEmpty().isLength({ max: 20 }),
+  body('preferredTime').optional({ checkFalsy: true }).isLength({ max: 20 }),
+  body('vehicleId').optional({ checkFalsy: true }).isLength({ max: 100 }).matches(/^[a-zA-Z0-9\-_]*$/),
+  body('vehicleName').optional({ checkFalsy: true }).isLength({ max: 200 }),
+  body('message').optional({ checkFalsy: true }).isLength({ max: 500 }),
+  body('preferredLanguage').optional().isIn(['es', 'en']),
+  body('website').optional().isEmpty(), // honeypot
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(422).json({ error: 'Datos inválidos', details: errors.array() });
+
+  if (req.body.website) return res.status(200).json({ ok: true }); // honeypot
+
+  const { name, email, phone, vehicleId, vehicleName, preferredDate, preferredTime, message, preferredLanguage } = req.body;
+
+  // Save to DB
+  try {
+    await insertTestDrive({
+      name:          sanitize(name),
+      email,
+      phone:         sanitize(phone),
+      vehicleId:     vehicleId   || null,
+      vehicleName:   vehicleName ? sanitize(vehicleName) : null,
+      preferredDate: sanitize(preferredDate),
+      preferredTime: preferredTime ? sanitize(preferredTime) : null,
+      message:       message ? sanitize(message) : null,
+      language:      preferredLanguage || 'es',
+      ipHash:        hashIp(req.ip),
+    });
+  } catch (e) {
+    console.error('[TestDrive] DB error:', e.message);
+  }
+
+  // Send email via Resend
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (apiKey) {
+      const body = [
+        `Nombre: ${sanitize(name)}`,
+        `Correo: ${email}`,
+        `Teléfono: ${sanitize(phone)}`,
+        vehicleName ? `Vehículo: ${sanitize(vehicleName)}` : '',
+        `Fecha preferida: ${sanitize(preferredDate)}`,
+        preferredTime ? `Hora preferida: ${sanitize(preferredTime)}` : '',
+        message ? `\nNotas: ${sanitize(message)}` : '',
+        `\n---\nEnviado desde diegoortiz.com`,
+      ].filter(Boolean).join('\n');
+
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
+          to:       [process.env.CONTACT_RECIPIENT],
+          reply_to: email,
+          subject:  `🚗 Prueba de manejo: ${sanitize(name)} — ${vehicleName ? sanitize(vehicleName) : 'vehículo no especificado'}`,
+          text:     body,
+        }),
+      });
+    }
+  } catch (e) {
+    console.error('[TestDrive] Email error:', e.message);
+  }
+
+  res.json({ ok: true, message: '¡Solicitud enviada! Diego te confirmará pronto.' });
+});
