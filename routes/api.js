@@ -29,6 +29,7 @@ router.get('/config', (req, res) => {
       phone:   process.env.SALESMAN_PHONE   || '',
       email:   process.env.SALESMAN_EMAIL   || '',
       photo:   process.env.SALESMAN_PHOTO_URL || '/images/placeholder.jpg',
+      photo2:  process.env.SALESMAN_PHOTO_2_URL || process.env.SALESMAN_PHOTO_URL || '/images/placeholder.jpg',
       bioEs:   process.env.SALESMAN_BIO_ES  || '',
       bioEn:   process.env.SALESMAN_BIO_EN  || '',
     },
