@@ -254,8 +254,15 @@ router.post('/test-drive', [
 
   // Save to DB
   try {
+    const tdName    = sanitize(name);
+    const tdMessage = [
+      vehicleName ? `Prueba de manejo: ${sanitize(vehicleName)}` : 'Prueba de manejo',
+      `Fecha: ${sanitize(preferredDate)}${preferredTime ? ' a las ' + sanitize(preferredTime) : ''}`,
+      message ? `Notas: ${sanitize(message)}` : '',
+    ].filter(Boolean).join(' · ');
+
     await insertTestDrive({
-      name:          sanitize(name),
+      name:          tdName,
       email,
       phone:         sanitize(phone),
       vehicleId:     vehicleId   || null,
@@ -265,6 +272,18 @@ router.post('/test-drive', [
       message:       message ? sanitize(message) : null,
       language:      preferredLanguage || 'es',
       ipHash:        hashIp(req.ip),
+    });
+
+    // Also insert as a lead so it appears in the Leads tab
+    await db.insertLead({
+      name:      tdName,
+      email,
+      phone:     sanitize(phone),
+      message:   tdMessage,
+      vehicleId: vehicleId || null,
+      language:  preferredLanguage || 'es',
+      ipHash:    hashIp(req.ip),
+      userAgent: req.headers['user-agent'] || null,
     });
   } catch (e) {
     console.error('[TestDrive] DB error:', e.message);
