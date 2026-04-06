@@ -791,7 +791,7 @@ const renderLeads = (data) => {
         <div class="lead-actions">
           ${isUnread ? `<button class="lead-btn" data-action="mark-read" data-id="${esc(String(lead.id))}">✓ Marcar leído</button>` : ''}
           ${!isArchived ? `<button class="lead-btn danger" data-action="archive-lead" data-id="${esc(String(lead.id))}">Archivar</button>` : ''}
-          <a href="mailto:${esc(lead.email)}?subject=Tu consulta en Younger Nissan" class="lead-btn">Responder</a>
+          <button class="lead-btn" data-action="reply-lead" data-email="${esc(lead.email)}">Responder</button>
         </div>
       </div>
     `;
@@ -901,8 +901,8 @@ const renderTestDrives = (data) => {
           ${isUnread ? `<button class="lead-btn" data-action="td-read" data-id="${esc(String(t.id))}">✓ Marcar leída</button>` : ''}
           ${!t.confirmed ? `<button class="lead-btn td-confirm-btn" data-action="td-confirm" data-id="${esc(String(t.id))}">✓ Confirmar</button>` : ''}
           ${!t.archived ? `<button class="lead-btn danger" data-action="td-archive" data-id="${esc(String(t.id))}">Archivar</button>` : ''}
-          <a href="mailto:${esc(t.email)}?subject=Prueba de manejo confirmada — ${esc(t.vehicle_name || '')}" class="lead-btn">Responder</a>
-          <a href="tel:${esc(t.phone || '')}" class="lead-btn">Llamar</a>
+          <button class="lead-btn" data-action="td-reply" data-email="${esc(t.email)}" data-vehicle="${esc(t.vehicle_name || '')}">Responder</button>
+          <button class="lead-btn" data-action="td-call" data-phone="${esc(t.phone || '')}">Llamar</button>
         </div>
       </div>
     `;
@@ -1021,6 +1021,9 @@ document.addEventListener('click', (e) => {
     case 'td-confirm':   confirmTd(id);               break;
     case 'td-archive':   archiveTd(id);               break;
     case 'td-page':      goTdPage(parseInt(page));    break;
+    case 'reply-lead':   window.location.href = `mailto:${btn.dataset.email}?subject=Tu consulta en Younger Nissan`; break;
+    case 'td-reply':     window.location.href = `mailto:${btn.dataset.email}?subject=Prueba de manejo confirmada — ${btn.dataset.vehicle}`; break;
+    case 'td-call':      window.location.href = `tel:${btn.dataset.phone}`; break;
   }
 });
 
