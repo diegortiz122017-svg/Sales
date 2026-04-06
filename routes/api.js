@@ -200,21 +200,11 @@ router.post('/contact', contactLimiter, [
 });
 
 // ─── GET /api/reviews ─────────────────────────────────────
-// Pulls live reviews from DealerRater, filtered by salesman name.
-// Falls back to static reviews if scraping fails or returns nothing.
-const { fetchReviews } = require('../config/dealerrater');
-
+// Serves real reviews from the static JSON (exported from DealerRater).
+// 6 random reviews shuffled on each request.
 const STATIC_FALLBACK = require('../config/reviews-static.json');
 
-router.get('/reviews', async (req, res) => {
-  try {
-    const { reviews } = await fetchReviews();
-    if (reviews && reviews.length > 0) {
-      return res.json(reviews.map((r, i) => ({ ...r, id: `dr-${i}` })));
-    }
-  } catch (e) {
-    console.warn('[Reviews] DealerRater fetch failed, using fallback:', e.message);
-  }
+router.get('/reviews', (req, res) => {
   const shuffled = [...STATIC_FALLBACK].sort(() => Math.random() - 0.5).slice(0, 6);
   res.json(shuffled.map((r, i) => ({ ...r, id: `sf-${i}` })));
 });
