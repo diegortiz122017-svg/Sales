@@ -1,3 +1,5 @@
+const STATIC_REVIEWS = require('./reviews-static.json');
+
 /**
  * dealerrater.js — scrapes reviews mentioning the salesman from their DealerRater page
  *
@@ -46,15 +48,16 @@ const parseReviews = (html, filterName) => {
   // DealerRater review cards
   $('.review-entry, .review-wrapper, [class*="review-"]').each((_, el) => {
     const card = $(el);
+    const text = card.text().toLowerCase();
+
+    // Only keep reviews that mention the salesman's name anywhere in the card
+    if (!text.includes(nameLower)) return;
 
     // Extract review body
     const bodyEl = card.find('.review-content, .review-text, p').first();
     let body = bodyEl.text().trim();
     if (!body) body = card.find('p').first().text().trim();
     if (!body || body.length < 20) return;
-
-    // Require the name to appear in the review body itself, not just the card container
-    if (!body.toLowerCase().includes(nameLower)) return;
 
     // Extract rating
     let rating = 5;
@@ -147,11 +150,11 @@ const fetchReviews = async () => {
     _cache     = allReviews;
     _cacheTime = Date.now();
     console.log(`[DealerRater] Fetched ${allReviews.length} reviews for "${name}"`);
-  } else {
-    console.warn(`[DealerRater] No reviews found for "${name}" — check DEALERRATER_URL and DEALERRATER_NAME`);
+    return { reviews: allReviews, fromCache: false };
   }
 
-  return { reviews: allReviews, fromCache: false };
+  console.warn(`[DealerRater] No reviews found for "${name}" — using static fallback`);
+  return { reviews: STATIC_REVIEWS, fromCache: false, static: true };
 };
 
 // ── Warm the cache on startup (non-blocking) ─────────────
