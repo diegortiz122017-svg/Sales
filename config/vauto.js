@@ -104,6 +104,7 @@ const normalizeVehicle = (v) => ({
 
 // ─── Fetch from vAuto API ─────────────────────────────────
 const fetchFromVAuto = async ({ type, make, model, maxPrice, page = 1, limit = 12 } = {}) => {
+  // Fall back to mock/vAuto
   const cacheKey = `inventory:${type}:${make}:${model}:${maxPrice}:${page}`;
   const cached = cache.get(cacheKey);
   if (cached) return { ...cached, fromCache: true };
@@ -148,6 +149,16 @@ const fetchFromVAuto = async ({ type, make, model, maxPrice, page = 1, limit = 1
 };
 
 const getVehicleById = async (id) => {
+  // Try MySQL first
+  try {
+    const db = require('./db');
+    const count = await db.getInventoryCount();
+    if (count > 0) {
+      const vehicle = await db.getInventoryById(id);
+      if (vehicle) return vehicle;
+    }
+  } catch (e) { /* fall through */ }
+
   const cacheKey = `vehicle:${id}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
