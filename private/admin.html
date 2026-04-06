@@ -266,6 +266,7 @@
     <nav class="topbar-nav" id="topbar-nav">
       <button data-panel="dashboard" class="active">Dashboard</button>
       <button data-panel="leads">Leads</button>
+      <button data-panel="testdrives">Pruebas de Manejo <span id="td-badge" class="topbar-badge" style="display:none">0</span></button>
     </nav>
     <div class="topbar-right">
       <button class="logout-btn" id="logout-btn">Salir</button>
@@ -340,7 +341,22 @@
       <div id="leads-list"></div>
       <div class="pagination" id="leads-pagination"></div>
     </div>
-  </div>
+  
+    <!-- ── TEST DRIVES PANEL ── -->
+    <div class="panel" id="panel-testdrives">
+      <div class="leads-toolbar">
+        <span class="section-heading">Pruebas de Manejo</span>
+        <select id="td-filter">
+          <option value="0">Activas</option>
+          <option value="1">Archivadas</option>
+        </select>
+        <span class="leads-count" id="td-count"></span>
+      </div>
+      <div id="td-list"></div>
+      <div class="pagination" id="td-pagination"></div>
+    </div>
+
+</div>
 </div>
 
 <script nonce="NONCE_PLACEHOLDER">
@@ -453,6 +469,7 @@ document.querySelectorAll('[data-panel]').forEach(btn => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById(`panel-${btn.dataset.panel}`).classList.add('active');
     if (btn.dataset.panel === 'leads') loadLeads();
+    if (btn.dataset.panel === 'testdrives') loadTestDrives();
   });
 });
 
@@ -764,9 +781,97 @@ setInterval(() => { if (token) pollUnread(); }, 90_000);
 ═══════════════════════════════════════════════════════ */
 if (token) {
   showApp();
+  pollTdUnread();
 } else {
   showLogin();
 }
+
+/* ═══════════════════════════════════════════════════
+   TEST DRIVES
+═══════════════════════════════════════════════════ */
+let tdPage     = 1;
+let tdArchived = '0';
+
+const loadTestDrives = async () => {
+  document.getElementById('td-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span>Cargando...</span></div>';
+  const res = await apiFetch(`/api/admin/test-drives?page=${tdPage}&archived=${tdArchived}`);
+  if (!res) return;
+  const data = await res.json();
+  renderTestDrives(data);
+};
+
+const renderTestDrives = (data) => {
+  const list = document.getElementById('td-list');
+  document.getElementById('td-count').textContent = `${data.total} total`;
+
+  if (!data.testDrives?.length) {
+    list.innerHTML = '<div class="empty-state">No hay solicitudes en esta categoría.</div>';
+    document.getElementById('td-pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = data.testDrives.map(t => {
+    const isUnread = !t.read_at;
+    const date     = new Date(t.created_at).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+    return `
+      <div class="lead-card ${isUnread ? 'unread' : ''} ${t.archived ? 'archived' : ''}" data-id="${esc(String(t.id))}">
+        <div class="lead-header">
+          <div class="lead-name">
+            ${isUnread ? '<span class="unread-dot"></span>' : ''}
+            ${esc(t.name)}
+            ${t.confirmed ? '<span style="color:var(--green);font-size:.75rem;margin-left:8px">✓ Confirmada</span>' : ''}
+            <span class="lang-pill">${esc(t.language || 'es')}</span>
+          </div>
+          <div class="lead-date">${esc(date)}</div>
+        </div>
+        <div class="lead-meta">
+          <span>✉ <a href="mailto:${esc(t.email)}">${esc(t.email)}</a></span>
+          ${t.phone ? `<span>📞 <a href="tel:${esc(t.phone)}">${esc(t.phone)}</a></span>` : ''}
+        </div>
+        ${t.vehicle_name ? `<div class="lead-vehicle">🚗 ${esc(t.vehicle_name)}</div>` : ''}
+        <div class="lead-meta" style="margin-top:8px">
+          <span>📅 ${esc(t.preferred_date)}</span>
+          ${t.preferred_time ? `<span>🕐 ${esc(t.preferred_time)}</span>` : ''}
+        </div>
+        ${t.message ? `<div class="lead-message" style="margin-top:10px">${esc(t.message)}</div>` : ''}
+        <div class="lead-actions" style="margin-top:12px">
+          ${isUnread ? `<button class="lead-btn" onclick="markTdRead(${esc(String(t.id))})">✓ Marcar leída</button>` : ''}
+          ${!t.confirmed ? `<button class="lead-btn" onclick="confirmTd(${esc(String(t.id))})" style="color:var(--green);border-color:var(--green)">✓ Confirmar</button>` : ''}
+          ${!t.archived ? `<button class="lead-btn danger" onclick="archiveTd(${esc(String(t.id))})">Archivar</button>` : ''}
+          <a href="mailto:${esc(t.email)}?subject=Prueba de manejo confirmada — ${esc(t.vehicle_name || '')}" class="lead-btn">Responder</a>
+          <a href="tel:${esc(t.phone || '')}" class="lead-btn">Llamar</a>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const pages = Math.ceil(data.total / 15);
+  const pag   = document.getElementById('td-pagination');
+  pag.innerHTML = Array.from({ length: pages }, (_, i) => i + 1).map(p =>
+    `<button class="pg-btn ${p === tdPage ? 'active' : ''}" onclick="goTdPage(${p})">${p}</button>`
+  ).join('');
+};
+
+const markTdRead = async (id) => { await apiFetch(`/api/admin/test-drives/${id}/read`,    { method: 'PATCH' }); loadTestDrives(); pollTdUnread(); };
+const archiveTd  = async (id) => { await apiFetch(`/api/admin/test-drives/${id}/archive`, { method: 'PATCH' }); loadTestDrives(); };
+const confirmTd  = async (id) => { await apiFetch(`/api/admin/test-drives/${id}/confirm`, { method: 'PATCH' }); loadTestDrives(); };
+const goTdPage   = (p) => { tdPage = p; loadTestDrives(); };
+
+document.getElementById('td-filter').addEventListener('change', (e) => {
+  tdArchived = e.target.value; tdPage = 1; loadTestDrives();
+});
+
+const pollTdUnread = async () => {
+  const res = await apiFetch('/api/admin/test-drives/unread');
+  if (!res) return;
+  const { count } = await res.json();
+  const badge = document.getElementById('td-badge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-block' : 'none';
+};
+
+setInterval(() => { if (token) pollTdUnread(); }, 90_000);
+
 </script>
 </body>
 </html>
