@@ -953,16 +953,19 @@ const applyConfig = (cfg) => {
   const phoneEl = document.getElementById('contact-phone');
   phoneEl.textContent = escapeHTML(phone);
   phoneEl.href = `tel:${safeAttr(phone.replace(/\s/g,''))}`;
+  phoneEl.addEventListener('click', () => beacon('contact_click', { source: 'phone' }));
 
   const emailEl = document.getElementById('contact-email');
   emailEl.textContent = escapeHTML(s.email);
   emailEl.href = `mailto:${safeAttr(s.email)}`;
+  emailEl.addEventListener('click', () => beacon('contact_click', { source: 'email' }));
 
   const addrEl = document.getElementById('contact-address');
   addrEl.textContent = escapeHTML(d.address);
   addrEl.href = escapeHTML(d.mapsUrl || '#');
 
   document.getElementById('modal-call-btn').href = `tel:${safeAttr(phone.replace(/\s/g,''))}`;
+  document.getElementById('modal-call-btn').addEventListener('click', () => beacon('contact_click', { source: 'modal_call' }));
 
   // Footer
   const dealerLink = document.getElementById('footer-dealer-link');
