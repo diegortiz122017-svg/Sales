@@ -116,7 +116,7 @@ const getLeads = async ({ page = 1, limit = 20, archived = 0 } = {}) => {
   const offset = (page - 1) * limit;
   const [rows]  = await pool.execute(
     'SELECT * FROM leads WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [archived, limit, offset]
+    [archived, parseInt(limit), parseInt(offset)]
   );
   const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM leads WHERE archived = ?', [archived]);
   return { leads: rows, total: n, page, limit };
@@ -149,7 +149,7 @@ const getTestDrives = async ({ page = 1, limit = 15, archived = 0 } = {}) => {
   const offset = (page - 1) * limit;
   const [rows]  = await pool.execute(
     'SELECT * FROM test_drives WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [archived, limit, offset]
+    [archived, parseInt(limit), parseInt(offset)]
   );
   const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM test_drives WHERE archived = ?', [archived]);
   return { testDrives: rows, total: n, page, limit };
@@ -200,7 +200,7 @@ const getStats = async ({ days = 14 } = {}) => {
   const [topVehicles] = await pool.execute(`
     SELECT
       JSON_UNQUOTE(JSON_EXTRACT(payload,'$.vehicleId'))   as vehicle_id,
-      JSON_UNQUOTE(JSON_EXTRACT(payload,'$.vehicleName')) as vehicle_name,
+      MAX(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.vehicleName'))) as vehicle_name,
       COUNT(*) as views
     FROM page_events
     WHERE event='vehicle_view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
