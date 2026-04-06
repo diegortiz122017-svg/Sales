@@ -71,10 +71,10 @@ router.use(requireAdmin);
 // ── GET /api/admin/stats ──────────────────────────────────
 router.get('/stats', [
   query('days').optional().isInt({ min: 1, max: 90 }).toInt(),
-], (req, res) => {
+], async (req, res) => {
   if (validate(req, res)) return;
   try {
-    const stats = db.getStats({ days: req.query.days || 14 });
+    const stats = await db.getStats({ days: req.query.days || 14 });
     res.json(stats);
   } catch (e) {
     console.error('[Admin/stats]', e.message);
@@ -87,11 +87,11 @@ router.get('/leads', [
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
   query('archived').optional().isIn(['0', '1']),
-], (req, res) => {
+], async (req, res) => {
   if (validate(req, res)) return;
   try {
     const { page = 1, limit = 20, archived = '0' } = req.query;
-    const data = db.getLeads({ page, limit, archived: parseInt(archived) });
+    const data = await db.getLeads({ page, limit, archived: parseInt(archived) });
     res.json(data);
   } catch (e) {
     console.error('[Admin/leads]', e.message);
@@ -102,10 +102,10 @@ router.get('/leads', [
 // ── PATCH /api/admin/leads/:id/read ──────────────────────
 router.patch('/leads/:id/read', [
   param('id').isInt({ min: 1 }).toInt(),
-], (req, res) => {
+], async (req, res) => {
   if (validate(req, res)) return;
   try {
-    db.markLeadRead(req.params.id);
+    await db.markLeadRead(req.params.id);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Error al marcar como leído' });
@@ -115,10 +115,10 @@ router.patch('/leads/:id/read', [
 // ── PATCH /api/admin/leads/:id/archive ───────────────────
 router.patch('/leads/:id/archive', [
   param('id').isInt({ min: 1 }).toInt(),
-], (req, res) => {
+], async (req, res) => {
   if (validate(req, res)) return;
   try {
-    db.archiveLead(req.params.id);
+    await db.archiveLead(req.params.id);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Error al archivar lead' });
@@ -126,18 +126,18 @@ router.patch('/leads/:id/archive', [
 });
 
 // ── GET /api/admin/unread ─────────────────────────────────
-router.get('/unread', (req, res) => {
+router.get('/unread', async (req, res) => {
   try {
-    res.json({ count: db.getUnreadCount() });
+    res.json({ count: await db.getUnreadCount() });
   } catch (e) {
     res.status(500).json({ error: 'Error' });
   }
 });
 
 // ── POST /api/admin/prune ─────────────────────────────────
-router.post('/prune', (req, res) => {
+router.post('/prune', async (req, res) => {
   try {
-    db.pruneOldEvents();
+    await db.pruneOldEvents();
     res.json({ ok: true, message: 'Eventos antiguos eliminados (>90 días)' });
   } catch (e) {
     res.status(500).json({ error: 'Error al limpiar' });
@@ -145,3 +145,21 @@ router.post('/prune', (req, res) => {
 });
 
 module.exports = router;
+
+// ── GET /api/admin/test-drives ────────────────────────
+const { getTestDrives, markTestDriveRead, archiveTestDrive, confirmTestDrive, getUnreadTestDrives } = require('../config/db');
+
+router.get('/test-drives', requireAdmin, [
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('archived').optional().isIn(['0','1']),
+], async (req, res) => {
+  try {
+    const { page = 1, archived = '0' } = req.query;
+    res.json(await getTestDrives({ page, limit: 15, archived: parseInt(archived) }));
+  } catch(e) { res.status(500).json({ error: 'Error' }); }
+});
+
+router.patch('/test-drives/:id/read',    requireAdmin, async (req, res) => { try { await markTestDriveRead(req.params.id);  res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
+router.patch('/test-drives/:id/archive', requireAdmin, async (req, res) => { try { await archiveTestDrive(req.params.id);   res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
+router.patch('/test-drives/:id/confirm', requireAdmin, async (req, res) => { try { await confirmTestDrive(req.params.id);   res.json({ ok: true }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
+router.get('/test-drives/unread',        requireAdmin, async (req, res) => { try { res.json({ count: await getUnreadTestDrives() }); } catch(e) { res.status(500).json({ error: 'Error' }); } });
