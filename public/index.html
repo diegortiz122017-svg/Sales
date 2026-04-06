@@ -1360,7 +1360,7 @@ document.getElementById('inv-search-input').addEventListener('input', () => {
 ['filter-type','filter-make','filter-price','filter-year','filter-mileage','filter-drivetrain','filter-body'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     invState.type       = document.getElementById('filter-type').value;
-    invState.make       = document.getElementById('filter-make').value;
+    invState.make       = document.getElementById('filter-make').value.toUpperCase();
     invState.maxPrice   = document.getElementById('filter-price').value;
     invState.minYear    = document.getElementById('filter-year').value;
     invState.maxMileage = document.getElementById('filter-mileage').value;
@@ -1370,22 +1370,37 @@ document.getElementById('inv-search-input').addEventListener('input', () => {
   });
 });
 
-// Populate make and year dropdowns from live inventory
-const buildBrandFilters = (vehicles) => {
-  const makeSelect  = document.getElementById('filter-make');
-  const makes = [...new Set(vehicles.map(v => v.make).filter(Boolean).map(m => m.toUpperCase()))].sort();
-  const currentMake = makeSelect.value;
-  makeSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
-    makes.map(m => `<option value="${escapeHTML(m)}" ${currentMake === m ? 'selected' : ''}>${escapeHTML(m)}</option>`).join('');
+// Load all unique filter values from DB in one request
+const loadFacets = async () => {
+  try {
+    const facets = await fetch('/api/inventory/facets').then(r => r.json());
+    const makeSelect = document.getElementById('filter-make');
+    const yearSelect = document.getElementById('filter-year');
+    const driveSelect = document.getElementById('filter-drivetrain');
+    const bodySelect = document.getElementById('filter-body');
+
+    if (facets.makes?.length) {
+      makeSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+        facets.makes.map(m => `<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('');
+    }
+    if (facets.years?.length) {
+      yearSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todos' : 'All'}</option>` +
+        facets.years.map(y => `<option value="${y}">${y}</option>`).join('');
+    }
+    if (facets.drivetrains?.length) {
+      driveSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+        facets.drivetrains.map(d => `<option value="${escapeHTML(d)}">${escapeHTML(d)}</option>`).join('');
+    }
+    if (facets.bodies?.length) {
+      bodySelect.innerHTML = `<option value="">${lang === 'es' ? 'Todas' : 'All'}</option>` +
+        facets.bodies.map(b => `<option value="${escapeHTML(b)}">${escapeHTML(b)}</option>`).join('');
+    }
+  } catch(e) { /* keep defaults */ }
 };
 
-const buildYearFilter = (vehicles) => {
-  const yearSelect = document.getElementById('filter-year');
-  const years = [...new Set(vehicles.map(v => v.year).filter(Boolean))].sort((a, b) => b - a);
-  const currentYear = yearSelect.value;
-  yearSelect.innerHTML = `<option value="">${lang === 'es' ? 'Todos' : 'All'}</option>` +
-    years.map(y => `<option value="${y}" ${currentYear == y ? 'selected' : ''}>${y}</option>`).join('');
-};
+// No-op stubs — facets now loaded separately
+const buildBrandFilters = () => {};
+const buildYearFilter   = () => {};
 
 
 /* ═══════════════════════════════════════════════════
@@ -1600,6 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderReviews();
   initReveal();
   beacon('pageview');
+  loadFacets();
 });
 
 /* TEST DRIVE MODAL JS */
