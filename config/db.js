@@ -1,201 +1,261 @@
 /**
- * db.js — lightweight JSON-file persistence
- * No native bindings, no WASM. Works on any Node.js 18+ environment.
- * Data is stored at DB_PATH as a JSON file, flushed to disk on every write.
+ * db.js — MySQL persistence via mysql2
+ * Replaces the JSON file store. All data survives deploys.
+ * Railway injects MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE automatically.
  */
 
-const fs   = require('fs');
-const path = require('path');
+const mysql = require('mysql2/promise');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'db.json');
+let pool = null;
 
-// ── In-memory store ───────────────────────────────────────
-let store = {
-  leads:        [],
-  page_events:  [],
-  _leadSeq:     0,
-  _eventSeq:    0,
-};
-
-// ── Bootstrap ─────────────────────────────────────────────
+// ── Bootstrap ─────────────────────────────────────────
 const init = async () => {
-  const dir = path.dirname(DB_PATH);
-  try {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  } catch (e) {
-    console.warn(`[DB] Cannot create data dir (${dir}): ${e.message} — running in-memory only`);
-  }
+  const isInternal = (process.env.MYSQLHOST || '').includes('railway.internal');
 
-  if (fs.existsSync(DB_PATH)) {
-    try {
-      const raw = fs.readFileSync(DB_PATH, 'utf8');
-      store = JSON.parse(raw);
-      // Ensure arrays exist in case of schema additions
-      store.leads       = store.leads       || [];
-      store.page_events = store.page_events || [];
-      store._leadSeq    = store._leadSeq    || store.leads.length;
-      store._eventSeq   = store._eventSeq   || store.page_events.length;
-      console.log(`[DB] Loaded from ${DB_PATH} (${store.leads.length} leads, ${store.page_events.length} events)`);
-    } catch (e) {
-      console.warn(`[DB] Could not parse existing DB, starting fresh: ${e.message}`);
-    }
-  } else {
-    console.log(`[DB] New database → ${DB_PATH}`);
-  }
-
-  // Graceful shutdown saves
-  process.on('SIGTERM', () => { save(); process.exit(0); });
-  process.on('SIGINT',  () => { save(); process.exit(0); });
-
-  return store;
-};
-
-// ── Persist ───────────────────────────────────────────────
-const save = () => {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(store), 'utf8');
-  } catch (e) {
-    console.error('[DB] Save error:', e.message);
-  }
-};
-
-const now = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
-
-// ── Lead operations ───────────────────────────────────────
-const insertLead = ({ name, email, phone, message, vehicleId, language, ipHash, userAgent }) => {
-  store._leadSeq++;
-  store.leads.push({
-    id:         store._leadSeq,
-    name, email,
-    phone:      phone      || null,
-    message,
-    vehicle_id: vehicleId  || null,
-    language:   language   || 'es',
-    ip_hash:    ipHash     || null,
-    user_agent: userAgent  || null,
-    created_at: now(),
-    read_at:    null,
-    archived:   0,
+  pool = await mysql.createPool({
+    host:     process.env.MYSQLHOST     || process.env.MYSQL_HOST,
+    port:     parseInt(process.env.MYSQLPORT || process.env.MYSQL_PORT || '3306'),
+    user:     process.env.MYSQLUSER     || process.env.MYSQL_USER,
+    password: process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD,
+    database: process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE,
+    ssl:      isInternal ? false : { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
+    waitForConnections: true,
+    connectionLimit:    5,
+    queueLimit:         0,
+    enableKeepAlive:    true,
+    keepAliveInitialDelay: 0,
+    connectTimeout:     30000,
   });
-  save();
+
+  // Verify connection
+  const conn = await pool.getConnection();
+  await conn.ping();
+  conn.release();
+  console.log('[DB] MySQL connected');
+
+  // Keep-alive ping every 20s
+  setInterval(async () => {
+    try { await pool.execute('SELECT 1'); }
+    catch(e) { console.error('[DB] Keepalive failed:', e.message); }
+  }, 20000);
+
+  await createTables();
+  return pool;
 };
 
-const getLeads = ({ page = 1, limit = 20, archived = 0 } = {}) => {
-  const filtered = store.leads
-    .filter(l => l.archived === archived || l.archived === String(archived))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const total  = filtered.length;
+// ── Schema ────────────────────────────────────────────
+const createTables = async () => {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      name        VARCHAR(200) NOT NULL,
+      email       VARCHAR(200) NOT NULL,
+      phone       VARCHAR(50),
+      message     TEXT NOT NULL,
+      vehicle_id  VARCHAR(100),
+      language    VARCHAR(5) DEFAULT 'es',
+      ip_hash     VARCHAR(32),
+      user_agent  VARCHAR(200),
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      read_at     DATETIME,
+      archived    TINYINT(1) DEFAULT 0,
+      INDEX idx_created (created_at DESC),
+      INDEX idx_archived (archived)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS test_drives (
+      id             INT AUTO_INCREMENT PRIMARY KEY,
+      name           VARCHAR(200) NOT NULL,
+      email          VARCHAR(200) NOT NULL,
+      phone          VARCHAR(50),
+      vehicle_id     VARCHAR(100),
+      vehicle_name   VARCHAR(200),
+      preferred_date VARCHAR(20),
+      preferred_time VARCHAR(20),
+      message        TEXT,
+      language       VARCHAR(5) DEFAULT 'es',
+      ip_hash        VARCHAR(32),
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      read_at        DATETIME,
+      archived       TINYINT(1) DEFAULT 0,
+      confirmed      TINYINT(1) DEFAULT 0,
+      INDEX idx_created (created_at DESC),
+      INDEX idx_archived (archived)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS page_events (
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      event      VARCHAR(50) NOT NULL,
+      payload    TEXT,
+      session_id VARCHAR(100),
+      ip_hash    VARCHAR(32),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_event   (event),
+      INDEX idx_created (created_at DESC),
+      INDEX idx_session (session_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  console.log('[DB] Tables ready');
+};
+
+// ── Lead operations ───────────────────────────────────
+const insertLead = async ({ name, email, phone, message, vehicleId, language, ipHash, userAgent }) => {
+  await pool.execute(
+    `INSERT INTO leads (name, email, phone, message, vehicle_id, language, ip_hash, user_agent)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, email, phone || null, message, vehicleId || null, language || 'es', ipHash || null, userAgent || null]
+  );
+};
+
+const getLeads = async ({ page = 1, limit = 20, archived = 0 } = {}) => {
   const offset = (page - 1) * limit;
-  return { leads: filtered.slice(offset, offset + limit), total, page, limit };
+  const [rows]  = await pool.execute(
+    'SELECT * FROM leads WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+    [archived, limit, offset]
+  );
+  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM leads WHERE archived = ?', [archived]);
+  return { leads: rows, total: n, page, limit };
 };
 
-const markLeadRead = (id) => {
-  const lead = store.leads.find(l => l.id === parseInt(id));
-  if (lead) { lead.read_at = now(); save(); }
+const markLeadRead = async (id) => {
+  await pool.execute('UPDATE leads SET read_at = NOW() WHERE id = ?', [parseInt(id)]);
 };
 
-const archiveLead = (id) => {
-  const lead = store.leads.find(l => l.id === parseInt(id));
-  if (lead) { lead.archived = 1; save(); }
+const archiveLead = async (id) => {
+  await pool.execute('UPDATE leads SET archived = 1 WHERE id = ?', [parseInt(id)]);
 };
 
-const getUnreadCount = () =>
-  store.leads.filter(l => !l.read_at && !l.archived).length;
-
-// ── Event operations ──────────────────────────────────────
-const logEvent = ({ event, payload, sessionId, ipHash }) => {
-  store._eventSeq++;
-  store.page_events.push({
-    id:         store._eventSeq,
-    event,
-    payload:    payload ? JSON.stringify(payload) : null,
-    session_id: sessionId || null,
-    ip_hash:    ipHash    || null,
-    created_at: now(),
-  });
-  // Keep only last 50k events in memory to avoid unbounded growth
-  if (store.page_events.length > 50000) store.page_events.splice(0, 10000);
+const getUnreadCount = async () => {
+  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM leads WHERE read_at IS NULL AND archived = 0');
+  return n;
 };
 
-// ── Stats ─────────────────────────────────────────────────
-const getStats = ({ days = 14 } = {}) => {
-  const cutoff = new Date(Date.now() - days * 86400000).toISOString().replace('T',' ').slice(0,19);
+// ── Test Drive operations ─────────────────────────────
+const insertTestDrive = async ({ name, email, phone, vehicleId, vehicleName, preferredDate, preferredTime, message, language, ipHash }) => {
+  await pool.execute(
+    `INSERT INTO test_drives (name, email, phone, vehicle_id, vehicle_name, preferred_date, preferred_time, message, language, ip_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, email, phone || null, vehicleId || null, vehicleName || null,
+     preferredDate || null, preferredTime || null, message || null, language || 'es', ipHash || null]
+  );
+};
 
-  const recentEvents = store.page_events.filter(e => e.created_at >= cutoff);
-  const recentLeads  = store.leads.filter(l => l.created_at >= cutoff);
+const getTestDrives = async ({ page = 1, limit = 15, archived = 0 } = {}) => {
+  const offset = (page - 1) * limit;
+  const [rows]  = await pool.execute(
+    'SELECT * FROM test_drives WHERE archived = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+    [archived, limit, offset]
+  );
+  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM test_drives WHERE archived = ?', [archived]);
+  return { testDrives: rows, total: n, page, limit };
+};
 
-  const pageviews    = recentEvents.filter(e => e.event === 'pageview');
-  const vehViews     = recentEvents.filter(e => e.event === 'vehicle_view');
-  const contactClks  = recentEvents.filter(e => e.event === 'contact_click');
-  const uniqueSess   = new Set(pageviews.map(e => e.session_id).filter(Boolean)).size;
+const markTestDriveRead  = async (id) => { await pool.execute('UPDATE test_drives SET read_at = NOW() WHERE id = ?',    [parseInt(id)]); };
+const archiveTestDrive   = async (id) => { await pool.execute('UPDATE test_drives SET archived = 1 WHERE id = ?',       [parseInt(id)]); };
+const confirmTestDrive   = async (id) => { await pool.execute('UPDATE test_drives SET confirmed = 1 WHERE id = ?',      [parseInt(id)]); };
+const getUnreadTestDrives = async ()  => {
+  const [[{ n }]] = await pool.execute('SELECT COUNT(*) as n FROM test_drives WHERE read_at IS NULL AND archived = 0');
+  return n;
+};
 
-  // Daily visits
-  const visitsByDay = {};
-  const sessByDay   = {};
-  pageviews.forEach(e => {
-    const d = e.created_at.slice(0,10);
-    visitsByDay[d] = (visitsByDay[d] || 0) + 1;
-    if (!sessByDay[d]) sessByDay[d] = new Set();
-    if (e.session_id) sessByDay[d].add(e.session_id);
-  });
-  const dailyVisits = Object.keys(visitsByDay).sort().map(date => ({
-    date,
-    visits:        visitsByDay[date],
-    unique_visits: sessByDay[date]?.size || 0,
-  }));
+// ── Event operations ──────────────────────────────────
+const logEvent = async ({ event, payload, sessionId, ipHash }) => {
+  try {
+    await pool.execute(
+      'INSERT INTO page_events (event, payload, session_id, ip_hash) VALUES (?, ?, ?, ?)',
+      [event, payload ? JSON.stringify(payload) : null, sessionId || null, ipHash || null]
+    );
+  } catch(e) {
+    // Non-fatal — analytics should never break the page
+    console.warn('[DB] logEvent error:', e.message);
+  }
+};
 
-  // Leads by day
-  const leadsByDayMap = {};
-  recentLeads.forEach(l => {
-    const d = l.created_at.slice(0,10);
-    leadsByDayMap[d] = (leadsByDayMap[d] || 0) + 1;
-  });
-  const leadsByDay = Object.keys(leadsByDayMap).sort().map(date => ({
-    date, count: leadsByDayMap[date],
-  }));
+// ── Stats ─────────────────────────────────────────────
+const getStats = async ({ days = 14 } = {}) => {
+  const d = parseInt(days);
 
-  // Top vehicles
-  const vehCount = {};
-  const vehNames = {};
-  vehViews.forEach(e => {
-    let p = {};
-    try { p = e.payload ? JSON.parse(e.payload) : {}; } catch {}
-    const id = p.vehicleId || 'unknown';
-    vehCount[id] = (vehCount[id] || 0) + 1;
-    if (p.vehicleName) vehNames[id] = p.vehicleName;
-  });
-  const topVehicles = Object.entries(vehCount)
-    .sort((a,b) => b[1]-a[1]).slice(0,8)
-    .map(([id, views]) => ({ vehicle_id: id, vehicle_name: vehNames[id] || id, views }));
+  const [[sv]] = await pool.execute(`
+    SELECT
+      COUNT(*) as totalVisits,
+      COUNT(DISTINCT session_id) as uniqueSessions
+    FROM page_events WHERE event='pageview' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+  `, [d]);
 
-  // Language breakdown
-  const langMap = {};
-  recentLeads.forEach(l => { langMap[l.language] = (langMap[l.language] || 0) + 1; });
-  const langBreakdown = Object.entries(langMap).map(([language, count]) => ({ language, count }));
+  const [[vv]] = await pool.execute(
+    `SELECT COUNT(*) as vehicleViews FROM page_events WHERE event='vehicle_view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [d]
+  );
+  const [[cc]] = await pool.execute(
+    `SELECT COUNT(*) as contactClicks FROM page_events WHERE event='contact_click' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [d]
+  );
+  const [[tl]] = await pool.execute(
+    `SELECT COUNT(*) as totalLeads FROM leads WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [d]
+  );
+
+  const [topVehicles] = await pool.execute(`
+    SELECT
+      JSON_UNQUOTE(JSON_EXTRACT(payload,'$.vehicleId'))   as vehicle_id,
+      JSON_UNQUOTE(JSON_EXTRACT(payload,'$.vehicleName')) as vehicle_name,
+      COUNT(*) as views
+    FROM page_events
+    WHERE event='vehicle_view' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    GROUP BY vehicle_id ORDER BY views DESC LIMIT 8
+  `, [d]);
+
+  const [dailyVisits] = await pool.execute(`
+    SELECT DATE(created_at) as date, COUNT(*) as visits, COUNT(DISTINCT session_id) as unique_visits
+    FROM page_events WHERE event='pageview' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    GROUP BY DATE(created_at) ORDER BY date ASC
+  `, [d]);
+
+  const [leadsByDay] = await pool.execute(`
+    SELECT DATE(created_at) as date, COUNT(*) as count
+    FROM leads WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    GROUP BY DATE(created_at) ORDER BY date ASC
+  `, [d]);
+
+  const [langBreakdown] = await pool.execute(`
+    SELECT language, COUNT(*) as count FROM leads
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY language
+  `, [d]);
+
+  const unreadLeads = await getUnreadCount();
 
   return {
     summary: {
-      totalVisits:    pageviews.length,
-      uniqueSessions: uniqueSess,
-      vehicleViews:   vehViews.length,
-      contactClicks:  contactClks.length,
-      totalLeads:     recentLeads.length,
-      unreadLeads:    getUnreadCount(),
+      totalVisits:    sv.totalVisits    || 0,
+      uniqueSessions: sv.uniqueSessions || 0,
+      vehicleViews:   vv.vehicleViews   || 0,
+      contactClicks:  cc.contactClicks  || 0,
+      totalLeads:     tl.totalLeads     || 0,
+      unreadLeads,
     },
-    topVehicles,
-    dailyVisits,
-    leadsByDay,
+    topVehicles:  topVehicles.map(r => ({ ...r, views: Number(r.views) })),
+    dailyVisits:  dailyVisits.map(r => ({ ...r, date: r.date?.toISOString?.()?.slice(0,10) || r.date })),
+    leadsByDay:   leadsByDay.map(r =>  ({ ...r, date: r.date?.toISOString?.()?.slice(0,10) || r.date })),
     langBreakdown,
   };
 };
 
-// ── Pruning ───────────────────────────────────────────────
-const pruneOldEvents = () => {
-  const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().replace('T',' ').slice(0,19);
-  const before = store.page_events.length;
-  store.page_events = store.page_events.filter(e => e.created_at >= cutoff);
-  const pruned = before - store.page_events.length;
-  if (pruned > 0) { console.log(`[DB] Pruned ${pruned} old events`); save(); }
+// ── Pruning ───────────────────────────────────────────
+const pruneOldEvents = async () => {
+  const [result] = await pool.execute(
+    "DELETE FROM page_events WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)"
+  );
+  if (result.affectedRows > 0) console.log(`[DB] Pruned ${result.affectedRows} old events`);
 };
 
-module.exports = { init, insertLead, getLeads, markLeadRead, archiveLead, getUnreadCount, logEvent, getStats, pruneOldEvents, save };
+// No-op save (MySQL writes immediately)
+const save = () => {};
+
+module.exports = {
+  init,
+  insertLead, getLeads, markLeadRead, archiveLead, getUnreadCount,
+  logEvent, getStats, pruneOldEvents, save,
+  insertTestDrive, getTestDrives, markTestDriveRead, archiveTestDrive, confirmTestDrive, getUnreadTestDrives,
+};
