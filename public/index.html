@@ -390,18 +390,19 @@
        REVIEWS
     ══════════════════════════════════════════ */
     #reviews { background: var(--surface); border-top: 1px solid var(--border); }
-    .reviews-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 16px; }
+    .reviews-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 16px; align-items: stretch; }
     @media(max-width:640px) { .reviews-track { grid-template-columns: 1fr; } }
     .review-card {
       background: var(--bg); border: 1px solid var(--border);
       border-radius: var(--radius-lg); padding: 28px;
       transition: border-color var(--trans);
+      display: flex; flex-direction: column;
     }
     .review-card:hover { border-color: var(--gold); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
     .review-stars { display: flex; gap: 3px; margin-bottom: 16px; }
     .star { color: var(--gold); font-size: 1rem; }
-    .review-text { font-size: .9rem; color: var(--muted); line-height: 1.8; margin-bottom: 20px; font-style: italic; }
-    .review-footer { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px; }
+    .review-text { font-size: .9rem; color: var(--muted); line-height: 1.8; margin-bottom: 20px; font-style: italic; flex: 1; }
+    .review-footer { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px; margin-top: auto; }
     .review-avatar {
       width: 40px; height: 40px; border-radius: 50%;
       background: var(--surface2); display: flex; align-items: center; justify-content: center;
@@ -1510,6 +1511,7 @@ const renderReviews = () => {
       reviewsGrid.innerHTML = reviews.map(r => {
         // Support both live DealerRater format (r.text) and fallback (r.textEs/r.textEn)
         const text = r.text || (lang === 'es' ? r.textEs : r.textEn) || '';
+        const truncated = text.length > 280 ? text.slice(0, 280).trimEnd() + '…' : text;
         const initials = escapeHTML(r.author.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase());
         const isLive = r.source === 'DealerRater';
         const sourceBadge = isLive
@@ -1518,7 +1520,7 @@ const renderReviews = () => {
         return `
           <div class="review-card reveal">
             <div class="review-stars">${'<span class="star">★</span>'.repeat(Math.round(r.rating))}</div>
-            <p class="review-text">"${escapeHTML(text)}"</p>
+            <p class="review-text">"${escapeHTML(truncated)}"</p>
             <div class="review-footer">
               <div class="review-avatar">${initials}</div>
               <div>
