@@ -46,16 +46,15 @@ const parseReviews = (html, filterName) => {
   // DealerRater review cards
   $('.review-entry, .review-wrapper, [class*="review-"]').each((_, el) => {
     const card = $(el);
-    const text = card.text().toLowerCase();
-
-    // Only keep reviews that mention the salesman's name
-    if (!text.includes(nameLower)) return;
 
     // Extract review body
     const bodyEl = card.find('.review-content, .review-text, p').first();
     let body = bodyEl.text().trim();
     if (!body) body = card.find('p').first().text().trim();
     if (!body || body.length < 20) return;
+
+    // Require the name to appear in the review body itself, not just the card container
+    if (!body.toLowerCase().includes(nameLower)) return;
 
     // Extract rating
     let rating = 5;
