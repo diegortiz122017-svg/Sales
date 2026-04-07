@@ -616,6 +616,21 @@
     @media(max-width:480px) { .td-time-grid { grid-template-columns: 1fr; } }
 
     /* ── ADVANCED FILTER DRAWER ─────────────────────── */
+    .inv-model-strip {
+      display: none; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin-top: 12px;
+      animation: fadeIn .2s ease;
+    }
+    .inv-model-strip.visible { display: flex; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+    .model-btn {
+      padding: 5px 16px; font-size: .72rem; font-weight: 500;
+      letter-spacing: .04em; text-transform: uppercase;
+      border: 1px solid var(--border); border-radius: 20px;
+      cursor: pointer; background: none; color: var(--muted);
+      transition: all var(--trans);
+    }
+    .model-btn:hover, .model-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(26,58,92,.06); }
     .inv-more-btn {
       padding: 9px 22px; font-size: .78rem; letter-spacing: .08em;
       text-transform: uppercase; border: 1px solid var(--border);
@@ -759,6 +774,8 @@
         <span class="inv-more-badge" id="inv-more-badge">0</span>
       </button>
     </div>
+
+    <div class="inv-model-strip" id="inv-model-strip"></div>
 
     <div class="inv-drawer" id="inv-drawer">
       <div class="inv-drawer-inner">
@@ -1128,7 +1145,7 @@ const safeAttr = (str) => {
 ═══════════════════════════════════════════════════ */
 let lang      = 'es';
 let config    = null;
-let invState  = { type: '', make: '', search: '', maxPrice: '', minYear: '', maxMileage: '', drivetrain: '', bodyStyle: '', page: 1, total: 0, limit: 12 };
+let invState  = { type: '', make: '', model: '', search: '', maxPrice: '', minYear: '', maxMileage: '', drivetrain: '', bodyStyle: '', page: 1, total: 0, limit: 12 };
 let activeModal = null;
 
 /* ═══════════════════════════════════════════════════
@@ -1285,7 +1302,8 @@ const loadInventory = async () => {
   const params = new URLSearchParams({ page: invState.page, limit: invState.limit });
   if (invState.type)      params.set('type',       invState.type);
   if (invState.make)      params.set('make',       invState.make);
-  if (invState.search)    params.set('model',      invState.search);
+  if (invState.model)     params.set('model',      invState.model);
+  else if (invState.search) params.set('model',    invState.search);
   if (invState.maxPrice)  params.set('maxPrice',   invState.maxPrice);
   if (invState.minYear)   params.set('minYear',    invState.minYear);
   if (invState.maxMileage)params.set('maxMileage', invState.maxMileage);
@@ -1354,10 +1372,38 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    invState.type = btn.dataset.filter || '';
+    invState.type  = btn.dataset.filter || '';
+    invState.model = '';
+    const strip = document.getElementById('inv-model-strip');
+    strip.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+    if (invState.type === 'new') buildModelStrip();
+    else strip.classList.remove('visible');
     filterChanged();
   });
 });
+
+// Model strip — shown only when NUEVOS is active
+const buildModelStrip = async () => {
+  const strip = document.getElementById('inv-model-strip');
+  try {
+    const data = await fetch('/api/inventory?type=new&limit=200&page=1').then(r => r.json());
+    const models = [...new Set((data.vehicles || []).map(v => v.model).filter(Boolean))].sort();
+    if (!models.length) { strip.classList.remove('visible'); return; }
+    strip.innerHTML = models.map(m =>
+      `<button class="model-btn" data-model="${escapeHTML(m)}">${escapeHTML(m)}</button>`
+    ).join('');
+    strip.querySelectorAll('.model-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        strip.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        invState.model = btn.dataset.model;
+        invState.page  = 1;
+        loadInventory();
+      });
+    });
+    strip.classList.add('visible');
+  } catch(e) { strip.classList.remove('visible'); }
+};
 
 // More filters drawer toggle
 document.getElementById('inv-more-btn').addEventListener('click', () => {
@@ -1390,7 +1436,8 @@ document.getElementById('inv-more-btn').addEventListener('click', () => {
 
 // Reset
 document.getElementById('inv-reset-btn').addEventListener('click', () => {
-  invState = { ...invState, type:'', make:'', search:'', maxPrice:'', minYear:'', maxMileage:'', drivetrain:'', bodyStyle:'', page:1 };
+  invState = { ...invState, type:'', make:'', model:'', search:'', maxPrice:'', minYear:'', maxMileage:'', drivetrain:'', bodyStyle:'', page:1 };
+  document.getElementById('inv-model-strip').classList.remove('visible');
   document.getElementById('inv-search-input').value  = '';
   document.getElementById('filter-make').value       = '';
   document.getElementById('filter-price').value      = '';
