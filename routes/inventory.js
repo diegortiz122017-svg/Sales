@@ -18,10 +18,8 @@ const upload = multer({
   limits:  { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (req, file, cb) => {
     const name = file.originalname.toLowerCase();
-    const ok = name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls') ||
-      file.mimetype === 'text/csv' ||
-      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      file.mimetype === 'application/vnd.ms-excel';
+    // Accept by extension — browsers send inconsistent mimetypes for xls/xlsx
+    const ok = name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls');
     if (ok) cb(null, true);
     else cb(new Error('Solo se aceptan archivos CSV, XLS o XLSX'));
   },
@@ -89,7 +87,7 @@ const mapRow = (row, headers) => {
     const normalized = normalizeKey(rawKey);
     const field = FIELD_MAP[normalized];
     if (field && value !== undefined && value !== '') {
-      vehicle[field] = value.trim();
+      vehicle[field] = String(value).trim();
     }
   }
 
