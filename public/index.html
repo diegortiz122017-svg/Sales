@@ -345,6 +345,8 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .inv-disclaimer { font-size: .72rem; color: var(--muted); text-align: center; max-width: 680px; margin: 20px auto 0; line-height: 1.7; }
+    .modal-disclaimer { font-size: .68rem; color: var(--muted); line-height: 1.6; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
     .inv-pagination { display: flex; justify-content: center; gap: 8px; }
     .page-btn {
       width: 40px; height: 40px;
@@ -821,6 +823,7 @@
     </div>
 
     <div class="inv-pagination" id="inv-pagination"></div>
+    <p class="inv-disclaimer" data-es="Precios sujetos a cambios según disponibilidad de inventario. Excluyen impuestos, título y licencia." data-en="Prices subject to change based on inventory availability. Exclude taxes, title, and license.">Precios sujetos a cambios según disponibilidad de inventario. Excluyen impuestos, título y licencia.</p>
   </div>
 </section>
 
@@ -1015,6 +1018,7 @@
         <h4 data-es="Características" data-en="Features">Características</h4>
         <div class="features-list" id="modal-features"></div>
       </div>
+      <p class="modal-disclaimer" data-es="Precio sujeto a cambios según disponibilidad. Puede calificar para un descuento adicional. Excluye impuestos, título y licencia. Verifique disponibilidad con el concesionario." data-en="Price subject to change based on availability. May qualify for additional discount. Excludes taxes, title, and license. Verify availability with dealer.">Precio sujeto a cambios según disponibilidad. Puede calificar para un descuento adicional. Excluye impuestos, título y licencia. Verifique disponibilidad con el concesionario.</p>
       <div class="modal-actions">
         <button class="modal-share-btn" id="modal-share-btn">🔗 <span data-es="Compartir" data-en="Share">Compartir</span></button>
         <button class="btn-test-drive" id="modal-td-btn">🚗 <span data-es="Prueba de manejo" data-en="Test Drive">Prueba de manejo</span></button>
