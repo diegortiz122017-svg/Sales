@@ -251,13 +251,14 @@ router.post('/test-drive', [
 
   if (req.body.website) return res.status(200).json({ ok: true }); // honeypot
 
-  const { name, email, phone, vehicleId, vehicleName, preferredDate, preferredTime, message, preferredLanguage } = req.body;
+  const { name, email, phone, vehicleId, vehicleName, stockNumber, preferredDate, preferredTime, message, preferredLanguage } = req.body;
 
   // Save to DB
   try {
     const tdName    = sanitize(name);
+    const stockInfo = stockNumber ? ` (Stock #${sanitize(stockNumber)})` : '';
     const tdMessage = [
-      vehicleName ? `Prueba de manejo: ${sanitize(vehicleName)}` : 'Prueba de manejo',
+      vehicleName ? `Prueba de manejo: ${sanitize(vehicleName)}${stockInfo}` : 'Prueba de manejo',
       `Fecha: ${sanitize(preferredDate)}${preferredTime ? ' a las ' + sanitize(preferredTime) : ''}`,
       message ? `Notas: ${sanitize(message)}` : '',
     ].filter(Boolean).join(' · ');
@@ -266,8 +267,9 @@ router.post('/test-drive', [
       name:          tdName,
       email,
       phone:         sanitize(phone),
-      vehicleId:     vehicleId   || null,
-      vehicleName:   vehicleName ? sanitize(vehicleName) : null,
+      vehicleId:     vehicleId    || null,
+      vehicleName:   vehicleName  ? sanitize(vehicleName)  : null,
+      stockNumber:   stockNumber  ? sanitize(stockNumber)  : null,
       preferredDate: sanitize(preferredDate),
       preferredTime: preferredTime ? sanitize(preferredTime) : null,
       message:       message ? sanitize(message) : null,
@@ -298,7 +300,7 @@ router.post('/test-drive', [
         `Nombre: ${sanitize(name)}`,
         `Correo: ${email}`,
         `Teléfono: ${sanitize(phone)}`,
-        vehicleName ? `Vehículo: ${sanitize(vehicleName)}` : '',
+        vehicleName ? `Vehículo: ${sanitize(vehicleName)}${stockNumber ? ` (Stock #${sanitize(stockNumber)})` : ''}` : '',
         `Fecha preferida: ${sanitize(preferredDate)}`,
         preferredTime ? `Hora preferida: ${sanitize(preferredTime)}` : '',
         message ? `\nNotas: ${sanitize(message)}` : '',
@@ -312,7 +314,7 @@ router.post('/test-drive', [
           from:     process.env.RESEND_FROM || 'onboarding@resend.dev',
           to:       [process.env.CONTACT_RECIPIENT],
           reply_to: email,
-          subject:  `🚗 Prueba de manejo: ${sanitize(name)} — ${vehicleName ? sanitize(vehicleName) : 'vehículo no especificado'}`,
+          subject:  `🚗 Prueba de manejo: ${sanitize(name)} — ${vehicleName ? sanitize(vehicleName) : 'vehículo no especificado'}${stockNumber ? ` (Stock #${sanitize(stockNumber)})` : ''}`,
           text:     body,
         }),
       });
