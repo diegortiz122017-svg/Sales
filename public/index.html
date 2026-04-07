@@ -1386,8 +1386,8 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 const buildModelStrip = async () => {
   const strip = document.getElementById('inv-model-strip');
   try {
-    const data = await fetch('/api/inventory?type=new&limit=200&page=1').then(r => r.json());
-    const models = [...new Set((data.vehicles || []).map(v => v.model).filter(Boolean))].sort();
+    const facets = await fetch('/api/inventory/facets').then(r => r.json());
+    const models = (facets.newModels || []).sort();
     if (!models.length) { strip.classList.remove('visible'); return; }
     strip.innerHTML = models.map(m =>
       `<button class="model-btn" data-model="${escapeHTML(m)}">${escapeHTML(m)}</button>`
