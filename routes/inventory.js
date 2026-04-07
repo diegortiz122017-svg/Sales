@@ -93,9 +93,11 @@ const mapRow = (row, headers) => {
 
   // Combine Series + Series Detail into full trim string
   if (vehicle.trim && vehicle.trimDetail) {
-    vehicle.trim = (vehicle.trim + ' ' + vehicle.trimDetail).trim();
+    vehicle.trim = (vehicle.trim + ' ' + vehicle.trimDetail).trim().toUpperCase();
   } else if (vehicle.trimDetail && !vehicle.trim) {
-    vehicle.trim = vehicle.trimDetail;
+    vehicle.trim = vehicle.trimDetail.toUpperCase();
+  } else if (vehicle.trim) {
+    vehicle.trim = vehicle.trim.toUpperCase();
   }
   delete vehicle.trimDetail;
 
