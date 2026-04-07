@@ -118,7 +118,7 @@
        HERO
     ══════════════════════════════════════════ */
     #hero {
-      min-height: 100vh;
+      min-height: 85vh;
       display: grid; grid-template-columns: 1fr 1fr; align-items: center;
       padding-top: 64px;
       position: relative; overflow: hidden;
@@ -193,7 +193,11 @@
     }
     #hero-photo-img {
       width: 100%; height: 100%; object-fit: cover; object-position: center center;
+      display: none;
     }
+    #hero-photo-img.loaded { display: block; }
+    .hidden { display: none !important; }
+    .hero-photo-col.has-photo { visibility: visible; }
     .hero-photo-placeholder {
       display: flex; flex-direction: column; align-items: center; gap: 16px;
       color: var(--muted); font-size: .85rem; text-align: center; padding: 40px;
@@ -741,7 +745,7 @@
   </div>
   <div class="hero-photo-col">
     <div class="hero-photo-frame">
-      <img id="hero-photo-img" src="" alt="Diego Ortiz — Nissan Sales Specialist" style="display:none" />
+      <img id="hero-photo-img" src="" alt="Diego Ortiz — Nissan Sales Specialist" />
       <div class="hero-photo-placeholder" id="hero-photo-placeholder">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1" fill="none">
           <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
@@ -1217,8 +1221,9 @@ const applyConfig = (cfg) => {
   if (s.photo && s.photo !== '/images/placeholder.jpg') {
     const heroImg = document.getElementById('hero-photo-img');
     heroImg.src = escapeHTML(s.photo);
-    heroImg.style.display = 'block';
-    document.getElementById('hero-photo-placeholder').style.display = 'none';
+    heroImg.classList.add('loaded');
+    heroImg.closest('.hero-photo-col').classList.add('has-photo');
+    document.getElementById('hero-photo-placeholder').classList.add('hidden');
     const aboutImg = document.getElementById('about-photo');
     aboutImg.src = escapeHTML(s.photo2 || s.photo);
     aboutImg.style.display = 'block';
