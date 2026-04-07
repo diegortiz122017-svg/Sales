@@ -72,7 +72,7 @@ const FIELD_MAP = {
   'n/u/t': 'type', 'new/used/trade': 'type', 'exit strategy': 'type',
   'ext. color': 'extColor', 'int. color': 'intColor',
   'miles': 'mileage', 'odometer': 'mileage',
-  'series': 'trim', 'series detail': 'trim',
+  'series': 'trim', 'series detail': 'trimDetail',
   'color': 'extColor',
   'interior\ndescription': 'intColor', 'interior description': 'intColor',
   'body': 'bodyStyle', 'body style': 'bodyStyle', 'body type': 'bodyStyle',
@@ -90,6 +90,14 @@ const mapRow = (row, headers) => {
       vehicle[field] = String(value).trim();
     }
   }
+
+  // Combine Series + Series Detail into full trim string
+  if (vehicle.trim && vehicle.trimDetail) {
+    vehicle.trim = (vehicle.trim + ' ' + vehicle.trimDetail).trim();
+  } else if (vehicle.trimDetail && !vehicle.trim) {
+    vehicle.trim = vehicle.trimDetail;
+  }
+  delete vehicle.trimDetail;
 
   // Normalize type field
   // Primary signal: stock number pattern — pure numeric = new, contains letters = used
