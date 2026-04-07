@@ -341,7 +341,7 @@ const getInventory = async ({ type, make, model, maxPrice, minYear, maxMileage, 
   const where  = conditions.join(' AND ');
   const offset = (page - 1) * limit;
   const [rows] = await pool.query(
-    `SELECT * FROM inventory WHERE ${where} ORDER BY updated_at DESC LIMIT ${limit} OFFSET ${offset}`,
+    `SELECT * FROM inventory WHERE ${where} ORDER BY price ASC LIMIT ${limit} OFFSET ${offset}`,
     params
   );
   const [[{ n }]] = await pool.query(
