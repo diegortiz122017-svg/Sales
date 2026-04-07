@@ -260,6 +260,7 @@
     .td-msg-mt      { margin-top:10px; }
     .td-actions-mt  { margin-top:12px; }
     .td-confirmed   { color:var(--green); font-size:.75rem; margin-left:8px; }
+    .td-stock-pill  { font-size:.72rem; color:var(--muted); margin-left:6px; }
     .td-confirm-btn { color:var(--green); border-color:var(--green); }
     .lang-nodata { height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.82rem; }
   </style>
@@ -891,7 +892,7 @@ const renderTestDrives = (data) => {
           <span>✉ <a href="mailto:${esc(t.email)}">${esc(t.email)}</a></span>
           ${t.phone ? `<span>📞 <a href="tel:${esc(t.phone)}">${esc(t.phone)}</a></span>` : ''}
         </div>
-        ${t.vehicle_name ? `<div class="lead-vehicle">🚗 ${esc(t.vehicle_name)}</div>` : ''}
+        ${t.vehicle_name ? `<div class="lead-vehicle">🚗 ${esc(t.vehicle_name)}${t.stock_number ? ` <span class='td-stock-pill'>Stock #${esc(t.stock_number)}</span>` : ''}</div>` : ''}
         <div class="lead-meta td-meta-mt">
           <span>📅 ${esc(t.preferred_date)}</span>
           ${t.preferred_time ? `<span>🕐 ${esc(t.preferred_time)}</span>` : ''}
