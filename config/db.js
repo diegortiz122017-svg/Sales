@@ -174,11 +174,11 @@ const getUnreadCount = async () => {
 };
 
 // ── Test Drive operations ─────────────────────────────
-const insertTestDrive = async ({ name, email, phone, vehicleId, vehicleName, preferredDate, preferredTime, message, language, ipHash }) => {
+const insertTestDrive = async ({ name, email, phone, vehicleId, vehicleName, stockNumber, preferredDate, preferredTime, message, language, ipHash }) => {
   await pool.execute(
-    `INSERT INTO test_drives (name, email, phone, vehicle_id, vehicle_name, preferred_date, preferred_time, message, language, ip_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, email, phone || null, vehicleId || null, vehicleName || null,
+    `INSERT INTO test_drives (name, email, phone, vehicle_id, vehicle_name, stock_number, preferred_date, preferred_time, message, language, ip_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, email, phone || null, vehicleId || null, vehicleName || null, stockNumber || null,
      preferredDate || null, preferredTime || null, message || null, language || 'es', ipHash || null]
   );
 };
