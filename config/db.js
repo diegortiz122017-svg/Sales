@@ -329,7 +329,8 @@ const getInventory = async ({ type, make, model, maxPrice, minYear, maxMileage, 
   page = parseInt(page); limit = parseInt(limit);
   const conditions = ['1=1'];
   const params     = [];
-  if (type)       { conditions.push('type = ?');              params.push(type); }
+  if (type === 'certified') { conditions.push('certified = 1'); }
+  else if (type)  { conditions.push('type = ?');              params.push(type); }
   if (make)       { conditions.push('make LIKE ?');           params.push('%' + make + '%'); }
   if (model)      { conditions.push('(model LIKE ? OR make LIKE ? OR trim LIKE ? OR stock_number LIKE ?)'); params.push('%' + model + '%', '%' + model + '%', '%' + model + '%', '%' + model + '%'); }
   if (maxPrice)   { conditions.push('price <= ?');            params.push(parseFloat(maxPrice)); }
