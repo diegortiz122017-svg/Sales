@@ -396,10 +396,12 @@ const normalizeRow = (r) => ({
 // ── Inventory facets — unique values for filter dropdowns ──
 const getInventoryFacets = async () => {
   const [makes] = await pool.query('SELECT DISTINCT UPPER(make) as make FROM inventory WHERE make IS NOT NULL ORDER BY make');
+  const [newModels] = await pool.query('SELECT DISTINCT model FROM inventory WHERE type = ? AND model IS NOT NULL ORDER BY model', ['new']);
   const [years] = await pool.query('SELECT DISTINCT year FROM inventory WHERE year IS NOT NULL ORDER BY year DESC');
   const [drivetrains] = await pool.query('SELECT DISTINCT drivetrain FROM inventory WHERE drivetrain IS NOT NULL ORDER BY drivetrain');
   const [bodies] = await pool.query('SELECT DISTINCT body_style FROM inventory WHERE body_style IS NOT NULL ORDER BY body_style');
   return {
+    newModels:  newModels.map(r => r.model).filter(Boolean),
     makes:      makes.map(r => r.make).filter(Boolean),
     years:      years.map(r => r.year).filter(Boolean),
     drivetrains: drivetrains.map(r => r.drivetrain).filter(Boolean),
