@@ -154,6 +154,7 @@
       max-width: 440px; margin-bottom: 44px;
     }
     .hero-ctas { display: flex; gap: 16px; flex-wrap: wrap; }
+    .hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
     .btn-primary {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 14px 32px;
@@ -731,14 +732,22 @@
         <span data-es="Contáctame" data-en="Contact Me">Contáctame</span>
       </a>
     </div>
-  </div>
-  <div class="hero-bio-col">
-    <p class="hero-bio-text" id="hero-bio-text"></p>
     <div class="hero-badges">
       <span class="badge badge-gold" data-es="🇪🇸 Atención en Español" data-en="🇪🇸 Spanish Service">🇪🇸 Atención en Español</span>
       <span class="badge" data-es="Sin Presión" data-en="No Pressure">Sin Presión</span>
-      <span class="badge" data-es="Financiamiento Flexible" data-en="Flexible Financing">Financiamiento Flexible</span>
-      <span class="badge" data-es="2+ Años de Experiencia" data-en="2+ Years Experience">2+ Años de Experiencia</span>
+      <span class="badge" data-es="Financiamiento Fácil" data-en="Easy Financing">Financiamiento Fácil</span>
+      <span class="badge" data-es="2+ Años de Experiencia" data-en="2+ Years Experience">2+ Años Exp.</span>
+    </div>
+  </div>
+  <div class="hero-photo-col">
+    <div class="hero-photo-frame">
+      <img id="hero-photo-img" src="" alt="Diego Ortiz — Nissan Sales Specialist" style="display:none" />
+      <div class="hero-photo-placeholder" id="hero-photo-placeholder">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1" fill="none">
+          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+        <span>Foto de Diego Ortiz</span>
+      </div>
     </div>
   </div>
 </section>
@@ -761,6 +770,12 @@
         </h2>
         <p id="about-bio-text"></p>
 
+        <div class="about-badges">
+          <span class="badge badge-gold" data-es="🇪🇸 Atención en Español" data-en="🇪🇸 Spanish Service">🇪🇸 Atención en Español</span>
+          <span class="badge" data-es="Sin Presión" data-en="No Pressure">Sin Presión</span>
+          <span class="badge" data-es="Financiamiento Flexible" data-en="Flexible Financing">Financiamiento Flexible</span>
+          <span class="badge" data-es="2+ Años de Experiencia" data-en="2+ Years Experience">2+ Años de Experiencia</span>
+        </div>
         <a href="#contact" class="btn-primary">
           <span data-es="Hablar con Diego" data-en="Talk to Diego">Hablar con Diego</span>
         </a>
@@ -1195,12 +1210,15 @@ const applyConfig = (cfg) => {
 
   const bio = lang === 'es' ? s.bioEs : s.bioEn;
   document.getElementById('hero-desc').textContent  = 'Diego Ortiz — Vehículos nuevos y pre-owned en Frederick, MD · Atención en español.';
-  const heroBioEl = document.getElementById('hero-bio-text');
-  if (heroBioEl) heroBioEl.textContent = escapeHTML(bio);
+
   document.getElementById('about-bio-text').textContent = escapeHTML(bio);
 
   // Photo
-  if (false) { // hero photo removed — bio shown instead
+  if (s.photo && s.photo !== '/images/placeholder.jpg') {
+    const heroImg = document.getElementById('hero-photo-img');
+    heroImg.src = escapeHTML(s.photo);
+    heroImg.style.display = 'block';
+    document.getElementById('hero-photo-placeholder').style.display = 'none';
     const aboutImg = document.getElementById('about-photo');
     aboutImg.src = escapeHTML(s.photo2 || s.photo);
     aboutImg.style.display = 'block';
