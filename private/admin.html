@@ -953,7 +953,7 @@ const loadInvStatus = async () => {
 
 document.getElementById('inv-upload-btn').addEventListener('click', async () => {
   const file = document.getElementById('inv-file-input').files[0];
-  if (!file) { alert('Selecciona un archivo CSV primero.'); return; }
+  if (!file) { alert('Selecciona un archivo primero.'); return; }
   const clearFirst = document.getElementById('inv-clear-first').checked;
   const btn = document.getElementById('inv-upload-btn');
   const msg = document.getElementById('inv-msg');
