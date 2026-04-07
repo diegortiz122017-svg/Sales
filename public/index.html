@@ -1038,6 +1038,7 @@
     <form id="td-form" novalidate>
       <input type="hidden" id="td-vehicle-id" name="vehicleId" />
       <input type="hidden" id="td-vehicle-name" name="vehicleName" />
+      <input type="hidden" id="td-stock-number" name="stockNumber" />
       <!-- Honeypot -->
       <div class="form-honeypot"><input type="text" name="website" tabindex="-1" autocomplete="off" /></div>
 
@@ -1687,9 +1688,10 @@ const tdSubmit  = document.getElementById('td-submit');
 const tdDateEl = document.getElementById('td-date');
 if (tdDateEl) tdDateEl.min = new Date().toISOString().split('T')[0];
 
-const openTdModal = (vehicleId, vehicleName) => {
-  document.getElementById('td-vehicle-id').value   = vehicleId   || '';
-  document.getElementById('td-vehicle-name').value = vehicleName || '';
+const openTdModal = (vehicleId, vehicleName, stockNumber) => {
+  document.getElementById('td-vehicle-id').value    = vehicleId    || '';
+  document.getElementById('td-vehicle-name').value  = vehicleName  || '';
+  document.getElementById('td-stock-number').value  = stockNumber  || '';
   document.getElementById('td-vehicle-label').textContent = vehicleName
     ? (lang === 'es' ? 'Vehículo: ' : 'Vehicle: ') + vehicleName : '';
   tdOverlay.classList.add('open');
@@ -1708,10 +1710,11 @@ document.addEventListener('keydown', e => {
 
 document.getElementById('modal-td-btn').addEventListener('click', () => {
   if (!activeModal) return;
-  const vId   = activeModal.id;
-  const vName = [activeModal.year, activeModal.make, activeModal.model, activeModal.trim || ''].join(' ').trim();
+  const vId    = activeModal.id;
+  const vName  = [activeModal.year, activeModal.make, activeModal.model, activeModal.trim || ''].join(' ').trim();
+  const vStock = activeModal.stockNumber || '';
   closeModal();
-  openTdModal(vId, vName);
+  openTdModal(vId, vName, vStock);
 });
 
 const showTdMsg = (msg, type) => {
@@ -1741,6 +1744,7 @@ tdForm.addEventListener('submit', async (e) => {
         name, phone, email,
         vehicleId:         document.getElementById('td-vehicle-id').value,
         vehicleName:       document.getElementById('td-vehicle-name').value,
+        stockNumber:       document.getElementById('td-stock-number').value,
         preferredDate:     date,
         preferredTime:     document.getElementById('td-time').value,
         message:           document.getElementById('td-message').value.trim(),
